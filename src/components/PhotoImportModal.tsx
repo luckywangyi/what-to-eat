@@ -64,58 +64,75 @@ export const PhotoImportModal: React.FC<PhotoImportModalProps> = ({
 
   // 处理拍照
   const handleTakePhoto = async () => {
-    const result = await takePhoto();
-    if (result.success && result.base64) {
-      processImage(result.base64, result.uri);
-    } else if (result.error && result.error !== '用户取消') {
-      showMessage(result.error);
+    try {
+      const result = await takePhoto();
+      if (result.success && result.base64) {
+        processImage(result.base64, result.uri);
+      } else if (result.error && result.error !== '用户取消') {
+        showMessage(result.error);
+      }
+    } catch (error) {
+      console.error('拍照失败:', error);
+      showMessage('拍照失败，请检查相机权限');
     }
   };
 
   // 处理从相册选择
   const handlePickFromGallery = async () => {
-    const result = await pickImageFromGallery();
-    if (result.success && result.base64) {
-      processImage(result.base64, result.uri);
-    } else if (result.error && result.error !== '用户取消') {
-      showMessage(result.error);
+    try {
+      const result = await pickImageFromGallery();
+      if (result.success && result.base64) {
+        processImage(result.base64, result.uri);
+      } else if (result.error && result.error !== '用户取消') {
+        showMessage(result.error);
+      }
+    } catch (error) {
+      console.error('选择图片失败:', error);
+      showMessage('选择图片失败，请检查存储权限');
     }
   };
 
   // 处理图片
   const processImage = async (base64: string, uri?: string) => {
-    // 检查图片大小
-    const sizeMB = estimateImageSize(base64);
-    if (sizeMB > 4) {
-      showMessage(`图片过大 (${sizeMB.toFixed(1)}MB)，请选择较小的图片`);
-      return;
-    }
-
-    setImageBase64(base64);
-    setImageUri(uri || null);
-    setStep('recognizing');
-    setIsRecognizing(true);
-    setError(null);
-
-    // 调用识别 API
-    const result = await recognizeMenuFromImage(base64, apiConfig);
-    
-    setIsRecognizing(false);
-
-    if (result.success && result.dishes && result.dishes.length > 0) {
-      setRecognizedDishes(result.dishes);
-      
-      if (importMode === 'quick') {
-        // 快速模式：直接导入
-        await handleQuickImport(result.dishes);
-      } else {
-        // 预览模式：显示结果列表
-        setStep('preview');
+    try {
+      // 检查图片大小
+      const sizeMB = estimateImageSize(base64);
+      if (sizeMB > 4) {
+        showMessage(`图片过大 (${sizeMB.toFixed(1)}MB)，请选择较小的图片`);
+        return;
       }
-    } else {
-      setError(result.error || '识别失败');
+
+      setImageBase64(base64);
+      setImageUri(uri || null);
+      setStep('recognizing');
+      setIsRecognizing(true);
+      setError(null);
+
+      // 调用识别 API
+      const result = await recognizeMenuFromImage(base64, apiConfig);
+      
+      setIsRecognizing(false);
+
+      if (result.success && result.dishes && result.dishes.length > 0) {
+        setRecognizedDishes(result.dishes);
+        
+        if (importMode === 'quick') {
+          // 快速模式：直接导入
+          await handleQuickImport(result.dishes);
+        } else {
+          // 预览模式：显示结果列表
+          setStep('preview');
+        }
+      } else {
+        setError(result.error || '识别失败');
+        setStep('select');
+        showMessage(result.error || '未能识别菜单内容');
+      }
+    } catch (error) {
+      console.error('处理图片失败:', error);
+      setIsRecognizing(false);
       setStep('select');
-      showMessage(result.error || '未能识别菜单内容');
+      showMessage('处理图片时出错，请重试');
     }
   };
 
