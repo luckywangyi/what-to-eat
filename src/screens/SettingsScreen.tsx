@@ -16,12 +16,15 @@ import {
 import {useFocusEffect} from '@react-navigation/native';
 import {usePreferenceStore} from '../stores/preferenceStore';
 import {useApiConfigStore, API_PROVIDERS} from '../stores/apiConfigStore';
+import {useThemeStore} from '../stores/themeStore';
 import {
   SpicyLevel,
   DietGoal,
   SPICY_LEVEL_LABELS,
   DIET_GOAL_LABELS,
 } from '../types';
+import {colors, typography, spacing, radius, themes, ThemeMode} from '../theme';
+import {PressableScale} from '../components/PressableScale';
 
 export const SettingsScreen: React.FC = () => {
   const theme = useTheme();
@@ -52,12 +55,22 @@ export const SettingsScreen: React.FC = () => {
     isConfigured,
   } = useApiConfigStore();
 
+  const {currentTheme, setTheme, loadTheme} = useThemeStore();
+
   useFocusEffect(
     useCallback(() => {
       loadPreferences();
       loadConfig();
+      loadTheme();
     }, [])
   );
+
+  // 切换主题
+  const handleThemeChange = async (mode: ThemeMode) => {
+    await setTheme(mode);
+    setSnackbarMessage(`已切换到「${themes[mode].name}」主题`);
+    setSnackbarVisible(true);
+  };
 
   // 同步 API Key 输入框
   React.useEffect(() => {
@@ -121,7 +134,8 @@ export const SettingsScreen: React.FC = () => {
   // 调整餐次预算比例
   const handleRatioChange = async (meal: 'breakfast' | 'lunch' | 'dinner', delta: number) => {
     const current = preferences.mealBudgetRatio;
-    const newValue = Math.max(0.1, Math.min(0.6, current[meal] + delta));
+    // 允许设置为0，最大100%
+    const newValue = Math.max(0, Math.min(1, current[meal] + delta));
     
     // 计算差值并分配给其他餐次
     const diff = newValue - current[meal];
@@ -134,15 +148,72 @@ export const SettingsScreen: React.FC = () => {
     
     // 按比例调整其他餐次
     const otherTotal = others.reduce((sum, m) => sum + current[m], 0);
-    others.forEach(m => {
-      newRatio[m] = current[m] - (diff * current[m] / otherTotal);
-    });
+    if (otherTotal > 0) {
+      others.forEach(m => {
+        newRatio[m] = Math.max(0, current[m] - (diff * current[m] / otherTotal));
+      });
+    } else {
+      // 如果其他餐次都是0，平均分配差值
+      others.forEach(m => {
+        newRatio[m] = Math.max(0, -diff / others.length);
+      });
+    }
     
     await setMealBudgetRatio(newRatio);
   };
 
   return (
-    <ScrollView style={styles.container}>
+  <View style={styles.container}>
+    <ScrollView style={styles.scrollView}>
+      {/* 主题设置 */}
+      <Card style={styles.card}>
+        <Card.Title 
+          title="主题设置" 
+          subtitle={`当前：${themes[currentTheme].name}`}
+        />
+        <Card.Content>
+          <View style={styles.themeGrid}>
+            {(Object.keys(themes) as ThemeMode[]).map((mode) => (
+              <PressableScale
+                key={mode}
+                onPress={() => handleThemeChange(mode)}
+                style={[
+                  styles.themeOption,
+                  currentTheme === mode && styles.themeOptionSelected,
+                ]}
+              >
+                <View 
+                  style={[
+                    styles.themePreview, 
+                    {backgroundColor: themes[mode].colors.background}
+                  ]}
+                >
+                  <View 
+                    style={[
+                      styles.themePreviewInner, 
+                      {backgroundColor: themes[mode].colors.surface}
+                    ]}
+                  >
+                    <View 
+                      style={[
+                        styles.themeAccent, 
+                        {backgroundColor: themes[mode].colors.accent}
+                      ]} 
+                    />
+                  </View>
+                </View>
+                <Text style={[
+                  styles.themeName,
+                  currentTheme === mode && styles.themeNameSelected,
+                ]}>
+                  {themes[mode].name}
+                </Text>
+              </PressableScale>
+            ))}
+          </View>
+        </Card.Content>
+      </Card>
+
       {/* API 配置 */}
       <Card style={styles.card}>
         <Card.Title 
@@ -378,87 +449,104 @@ export const SettingsScreen: React.FC = () => {
       </Card>
 
       <View style={styles.bottomPadding} />
-
-      <Snackbar
-        visible={snackbarVisible}
-        onDismiss={() => setSnackbarVisible(false)}
-        duration={3000}
-      >
-        {snackbarMessage}
-      </Snackbar>
     </ScrollView>
+
+    <Snackbar
+      visible={snackbarVisible}
+      onDismiss={() => setSnackbarVisible(false)}
+      duration={3000}
+      style={styles.snackbar}
+    >
+      {snackbarMessage}
+    </Snackbar>
+  </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  snackbar: {
+    marginBottom: spacing.xl,
   },
   card: {
-    margin: 16,
-    marginBottom: 8,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    elevation: 0,
+    shadowOpacity: 0,
   },
   sectionLabel: {
-    fontSize: 14,
+    ...typography.footnote,
     fontWeight: '600',
-    color: '#666',
-    marginBottom: 8,
-    marginTop: 8,
+    color: colors.text.secondary,
+    marginBottom: spacing.sm,
+    marginTop: spacing.sm,
   },
   segmentedButtons: {
-    marginBottom: 16,
+    marginBottom: spacing.lg,
   },
   input: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
+    backgroundColor: colors.surface,
   },
   apiActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 8,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
   chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: spacing.sm,
   },
   chip: {
-    marginBottom: 4,
+    marginBottom: spacing.xs,
+    backgroundColor: colors.surfaceSecondary,
   },
   divider: {
-    marginVertical: 16,
+    marginVertical: spacing.lg,
+    backgroundColor: colors.separator,
   },
   addFoodRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: spacing.sm,
   },
   foodInput: {
     flex: 1,
+    backgroundColor: colors.surface,
   },
   excludedFoodsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
+    gap: spacing.sm,
+    marginTop: spacing.md,
   },
   excludedChip: {
-    marginBottom: 4,
+    marginBottom: spacing.xs,
+    backgroundColor: colors.errorSubtle,
   },
   emptyText: {
-    color: '#888',
-    fontStyle: 'italic',
+    ...typography.subhead,
+    color: colors.text.tertiary,
   },
   ratioRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
   ratioLabel: {
-    fontSize: 16,
-    color: '#333',
+    ...typography.body,
+    color: colors.text.primary,
   },
   ratioControls: {
     flexDirection: 'row',
@@ -469,9 +557,55 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     minWidth: 50,
     textAlign: 'center',
+    color: colors.text.primary,
   },
   bottomPadding: {
+    height: spacing.xxxl,
+  },
+  themeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    justifyContent: 'space-between',
+  },
+  themeOption: {
+    width: '47%',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  themeOptionSelected: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accentSubtle,
+  },
+  themePreview: {
+    width: 60,
     height: 40,
+    borderRadius: radius.sm,
+    padding: 4,
+    marginBottom: spacing.sm,
+  },
+  themePreviewInner: {
+    flex: 1,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  themeAccent: {
+    width: 20,
+    height: 6,
+    borderRadius: 3,
+  },
+  themeName: {
+    ...typography.caption1,
+    color: colors.text.secondary,
+  },
+  themeNameSelected: {
+    color: colors.accent,
+    fontWeight: '600',
   },
 });
 

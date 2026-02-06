@@ -4,9 +4,7 @@ import {
   Text,
   FAB,
   Portal,
-  Modal,
   TextInput,
-  Button,
   SegmentedButtons,
   Chip,
   Divider,
@@ -17,6 +15,8 @@ import {
 import {useFocusEffect} from '@react-navigation/native';
 import {DishItem} from '../components/DishItem';
 import {PhotoImportModal} from '../components/PhotoImportModal';
+import {AnimatedModal} from '../components/AnimatedModal';
+import {PressableScale} from '../components/PressableScale';
 import {useMenuStore} from '../stores/menuStore';
 import {useApiConfigStore} from '../stores/apiConfigStore';
 import {
@@ -28,6 +28,7 @@ import {
   DISH_CATEGORY_LABELS,
   NUTRITION_TAG_LABELS,
 } from '../types';
+import {colors, typography, spacing, radius} from '../theme';
 
 type ModalMode = 'none' | 'addCanteen' | 'editCanteen' | 'addDish' | 'editDish';
 
@@ -247,17 +248,45 @@ export const MenuScreen: React.FC = () => {
     }
   };
 
+  // 食堂展开状态
+  const [expandedCanteens, setExpandedCanteens] = useState<Set<number>>(new Set());
+
+  // 切换食堂展开状态
+  const toggleCanteenExpanded = (canteenId: number) => {
+    setExpandedCanteens(prev => {
+      const next = new Set(prev);
+      if (next.has(canteenId)) {
+        next.delete(canteenId);
+      } else {
+        next.add(canteenId);
+      }
+      return next;
+    });
+  };
+
   // 渲染食堂列表
   const renderCanteenSection = (canteen: Canteen) => {
     const canteenDishes = dishes.filter(d => d.canteenId === canteen.id);
+    const isExpanded = expandedCanteens.has(canteen.id);
     
     return (
-      <List.Accordion
-        key={canteen.id}
-        title={canteen.name}
-        description={`${canteenDishes.length} 个菜品${canteen.location ? ` · ${canteen.location}` : ''}`}
-        left={props => <List.Icon {...props} icon="store" />}
-        right={props => (
+      <View key={canteen.id} style={styles.canteenSection}>
+        {/* 食堂头部 */}
+        <View style={styles.canteenHeader}>
+          <PressableScale
+            onPress={() => toggleCanteenExpanded(canteen.id)}
+            style={styles.canteenTitleArea}
+          >
+            <List.Icon icon="store" color={colors.accent} />
+            <View style={styles.canteenTitleText}>
+              <Text style={styles.canteenName}>{canteen.name}</Text>
+              <Text style={styles.canteenDescription}>
+                {canteenDishes.length} 个菜品{canteen.location ? ` · ${canteen.location}` : ''}
+              </Text>
+            </View>
+          </PressableScale>
+          
+          {/* 操作按钮 - 独立的点击区域 */}
           <View style={styles.canteenActions}>
             <IconButton
               icon="plus"
@@ -276,22 +305,27 @@ export const MenuScreen: React.FC = () => {
               onPress={() => handleDeleteCanteen(canteen)}
             />
           </View>
+        </View>
+        
+        {/* 菜品列表 */}
+        {isExpanded && (
+          <View style={styles.dishesContainer}>
+            {canteenDishes.length === 0 ? (
+              <Text style={styles.emptyText}>暂无菜品，点击 + 添加</Text>
+            ) : (
+              canteenDishes.map(dish => (
+                <DishItem
+                  key={dish.id}
+                  dish={dish}
+                  onEdit={openEditDishModal}
+                  onDelete={handleDeleteDish}
+                  onToggleAvailable={() => toggleDishAvailability(dish.id)}
+                />
+              ))
+            )}
+          </View>
         )}
-      >
-        {canteenDishes.length === 0 ? (
-          <Text style={styles.emptyText}>暂无菜品，点击 + 添加</Text>
-        ) : (
-          canteenDishes.map(dish => (
-            <DishItem
-              key={dish.id}
-              dish={dish}
-              onEdit={openEditDishModal}
-              onDelete={handleDeleteDish}
-              onToggleAvailable={() => toggleDishAvailability(dish.id)}
-            />
-          ))
-        )}
-      </List.Accordion>
+      </View>
     );
   };
 
@@ -304,9 +338,9 @@ export const MenuScreen: React.FC = () => {
             <Text style={styles.emptySubtitle}>点击右下角按钮添加食堂</Text>
           </View>
         ) : (
-          <List.Section>
+          <View style={styles.canteenList}>
             {canteens.map(renderCanteenSection)}
-          </List.Section>
+          </View>
         )}
       </ScrollView>
 
@@ -339,116 +373,128 @@ export const MenuScreen: React.FC = () => {
       />
 
       {/* 食堂编辑弹窗 */}
-      <Portal>
-        <Modal
-          visible={modalMode === 'addCanteen' || modalMode === 'editCanteen'}
-          onDismiss={() => setModalMode('none')}
-          contentContainerStyle={styles.modal}
-        >
+      <AnimatedModal
+        visible={modalMode === 'addCanteen' || modalMode === 'editCanteen'}
+        onDismiss={() => setModalMode('none')}
+        contentContainerStyle={styles.modal}
+      >
+        <Text style={styles.modalTitle}>
+          {modalMode === 'addCanteen' ? '添加食堂' : '编辑食堂'}
+        </Text>
+        
+        <TextInput
+          label="食堂名称"
+          value={canteenName}
+          onChangeText={setCanteenName}
+          mode="outlined"
+          style={styles.input}
+        />
+        
+        <TextInput
+          label="位置（选填）"
+          value={canteenLocation}
+          onChangeText={setCanteenLocation}
+          mode="outlined"
+          style={styles.input}
+        />
+        
+        <View style={styles.modalActions}>
+          <PressableScale 
+            onPress={() => setModalMode('none')} 
+            style={styles.modalButton}
+          >
+            <Text style={styles.modalButtonTextOutlined}>取消</Text>
+          </PressableScale>
+          <PressableScale 
+            onPress={handleSaveCanteen} 
+            style={[styles.modalButton, styles.modalButtonContained]}
+          >
+            <Text style={styles.modalButtonTextContained}>保存</Text>
+          </PressableScale>
+        </View>
+      </AnimatedModal>
+
+      {/* 菜品编辑弹窗 */}
+      <AnimatedModal
+        visible={modalMode === 'addDish' || modalMode === 'editDish'}
+        onDismiss={() => setModalMode('none')}
+        contentContainerStyle={styles.modal}
+      >
+        <ScrollView>
           <Text style={styles.modalTitle}>
-            {modalMode === 'addCanteen' ? '添加食堂' : '编辑食堂'}
+            {modalMode === 'addDish' ? '添加菜品' : '编辑菜品'}
           </Text>
           
           <TextInput
-            label="食堂名称"
-            value={canteenName}
-            onChangeText={setCanteenName}
+            label="菜品名称"
+            value={dishName}
+            onChangeText={setDishName}
             mode="outlined"
             style={styles.input}
           />
           
           <TextInput
-            label="位置（选填）"
-            value={canteenLocation}
-            onChangeText={setCanteenLocation}
+            label="价格"
+            value={dishPrice}
+            onChangeText={setDishPrice}
+            mode="outlined"
+            keyboardType="decimal-pad"
+            left={<TextInput.Affix text="¥" />}
+            style={styles.input}
+          />
+          
+          <TextInput
+            label="窗口名称（选填）"
+            value={dishWindow}
+            onChangeText={setDishWindow}
             mode="outlined"
             style={styles.input}
           />
           
-          <View style={styles.modalActions}>
-            <Button onPress={() => setModalMode('none')}>取消</Button>
-            <Button mode="contained" onPress={handleSaveCanteen}>
-              保存
-            </Button>
+          <Text style={styles.sectionLabel}>分类</Text>
+          <View style={styles.categoryContainer}>
+            {(Object.keys(DISH_CATEGORY_LABELS) as DishCategory[]).map(cat => (
+              <Chip
+                key={cat}
+                selected={dishCategory === cat}
+                onPress={() => setDishCategory(cat)}
+                style={styles.categoryChip}
+              >
+                {DISH_CATEGORY_LABELS[cat]}
+              </Chip>
+            ))}
           </View>
-        </Modal>
-      </Portal>
-
-      {/* 菜品编辑弹窗 */}
-      <Portal>
-        <Modal
-          visible={modalMode === 'addDish' || modalMode === 'editDish'}
-          onDismiss={() => setModalMode('none')}
-          contentContainerStyle={styles.modal}
-        >
-          <ScrollView>
-            <Text style={styles.modalTitle}>
-              {modalMode === 'addDish' ? '添加菜品' : '编辑菜品'}
-            </Text>
-            
-            <TextInput
-              label="菜品名称"
-              value={dishName}
-              onChangeText={setDishName}
-              mode="outlined"
-              style={styles.input}
-            />
-            
-            <TextInput
-              label="价格"
-              value={dishPrice}
-              onChangeText={setDishPrice}
-              mode="outlined"
-              keyboardType="decimal-pad"
-              left={<TextInput.Affix text="¥" />}
-              style={styles.input}
-            />
-            
-            <TextInput
-              label="窗口名称（选填）"
-              value={dishWindow}
-              onChangeText={setDishWindow}
-              mode="outlined"
-              style={styles.input}
-            />
-            
-            <Text style={styles.sectionLabel}>分类</Text>
-            <View style={styles.categoryContainer}>
-              {(Object.keys(DISH_CATEGORY_LABELS) as DishCategory[]).map(cat => (
-                <Chip
-                  key={cat}
-                  selected={dishCategory === cat}
-                  onPress={() => setDishCategory(cat)}
-                  style={styles.categoryChip}
-                >
-                  {DISH_CATEGORY_LABELS[cat]}
-                </Chip>
-              ))}
-            </View>
-            
-            <Text style={styles.sectionLabel}>营养标签（可多选）</Text>
-            <View style={styles.tagsContainer}>
-              {(Object.keys(NUTRITION_TAG_LABELS) as NutritionTag[]).map(tag => (
-                <Chip
-                  key={tag}
-                  selected={dishTags.includes(tag)}
-                  onPress={() => toggleTag(tag)}
-                  style={styles.tagChip}
-                >
-                  {NUTRITION_TAG_LABELS[tag]}
-                </Chip>
-              ))}
-            </View>
-            
-            <View style={styles.modalActions}>
-              <Button onPress={() => setModalMode('none')}>取消</Button>
-              <Button mode="contained" onPress={handleSaveDish}>
-                保存
-              </Button>
-            </View>
-          </ScrollView>
-        </Modal>
-      </Portal>
+          
+          <Text style={styles.sectionLabel}>营养标签（可多选）</Text>
+          <View style={styles.tagsContainer}>
+            {(Object.keys(NUTRITION_TAG_LABELS) as NutritionTag[]).map(tag => (
+              <Chip
+                key={tag}
+                selected={dishTags.includes(tag)}
+                onPress={() => toggleTag(tag)}
+                style={styles.tagChip}
+              >
+                {NUTRITION_TAG_LABELS[tag]}
+              </Chip>
+            ))}
+          </View>
+          
+          <View style={styles.modalActions}>
+            <PressableScale 
+              onPress={() => setModalMode('none')} 
+              style={styles.modalButton}
+            >
+              <Text style={styles.modalButtonTextOutlined}>取消</Text>
+            </PressableScale>
+            <PressableScale 
+              onPress={handleSaveDish} 
+              style={[styles.modalButton, styles.modalButtonContained]}
+            >
+              <Text style={styles.modalButtonTextContained}>保存</Text>
+            </PressableScale>
+          </View>
+        </ScrollView>
+      </AnimatedModal>
 
       <Snackbar
         visible={snackbarVisible}
@@ -464,82 +510,143 @@ export const MenuScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
   },
   emptyContainer: {
-    padding: 40,
+    paddingVertical: spacing.xxxl * 2,
+    paddingHorizontal: spacing.xl,
     alignItems: 'center',
   },
   emptyTitle: {
-    fontSize: 18,
-    color: '#666',
-    marginBottom: 8,
+    ...typography.title3,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: '#999',
+    ...typography.subhead,
+    color: colors.text.secondary,
   },
   emptyText: {
-    padding: 16,
-    color: '#888',
-    fontStyle: 'italic',
+    padding: spacing.lg,
+    color: colors.text.tertiary,
+    ...typography.subhead,
+  },
+  canteenList: {
+    padding: spacing.md,
+  },
+  canteenSection: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    marginBottom: spacing.md,
+    overflow: 'hidden',
+  },
+  canteenHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    paddingLeft: spacing.sm,
+    paddingRight: spacing.xs,
+  },
+  canteenTitleArea: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  canteenTitleText: {
+    flex: 1,
+    marginLeft: spacing.sm,
+  },
+  canteenName: {
+    ...typography.headline,
+    color: colors.text.primary,
+  },
+  canteenDescription: {
+    ...typography.caption1,
+    color: colors.text.secondary,
+    marginTop: 2,
   },
   canteenActions: {
     flexDirection: 'row',
   },
+  dishesContainer: {
+    borderTopWidth: 1,
+    borderTopColor: colors.separator,
+    paddingVertical: spacing.sm,
+  },
   fabGroup: {
     position: 'absolute',
-    right: 0,
-    bottom: 0,
+    right: spacing.md,
+    bottom: spacing.md,
   },
   modal: {
-    backgroundColor: 'white',
-    margin: 20,
-    padding: 20,
-    borderRadius: 12,
-    maxHeight: '80%',
+    backgroundColor: colors.surface,
+    padding: spacing.xl,
+    borderRadius: radius.lg,
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    ...typography.title2,
+    color: colors.text.primary,
+    marginBottom: spacing.lg,
   },
   input: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
+    backgroundColor: colors.surface,
   },
   sectionLabel: {
-    fontSize: 14,
+    ...typography.footnote,
     fontWeight: '600',
-    color: '#666',
-    marginTop: 8,
-    marginBottom: 8,
+    color: colors.text.secondary,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
   },
   categoryContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
+    gap: spacing.sm,
+    marginBottom: spacing.md,
   },
   categoryChip: {
-    marginBottom: 4,
+    marginBottom: spacing.xs,
+    backgroundColor: colors.surfaceSecondary,
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
   },
   tagChip: {
-    marginBottom: 4,
+    marginBottom: spacing.xs,
+    backgroundColor: colors.surfaceSecondary,
   },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 16,
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  modalButton: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonContained: {
+    backgroundColor: colors.accent,
+  },
+  modalButtonTextOutlined: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  modalButtonTextContained: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.surface,
   },
 });
 

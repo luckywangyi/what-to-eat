@@ -15,6 +15,7 @@ import {useBudgetStore} from '../stores/budgetStore';
 import {usePreferenceStore} from '../stores/preferenceStore';
 import {usePlanStore} from '../stores/planStore';
 import {MEAL_TYPE_LABELS} from '../types';
+import {colors, typography, spacing, radius} from '../theme';
 
 export const BudgetScreen: React.FC = () => {
   const theme = useTheme();
@@ -244,49 +245,58 @@ export const BudgetScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   card: {
-    margin: 16,
-    marginBottom: 8,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    elevation: 0,
+    shadowOpacity: 0,
   },
   budgetRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   budgetLabel: {
-    fontSize: 16,
-    color: '#666',
+    ...typography.subhead,
+    color: colors.text.secondary,
   },
   budgetAmount: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '600',
+    color: colors.text.primary,
+    letterSpacing: -0.3,
   },
   progressBar: {
-    height: 8,
-    borderRadius: 4,
-    marginVertical: 12,
+    height: 6,
+    borderRadius: 3,
+    marginVertical: spacing.md,
+    backgroundColor: colors.surfaceSecondary,
   },
   progressText: {
-    fontSize: 14,
-    color: '#888',
+    ...typography.caption1,
+    color: colors.text.tertiary,
     textAlign: 'center',
   },
   editContainer: {
-    gap: 12,
+    gap: spacing.md,
   },
   input: {
-    marginBottom: 8,
+    marginBottom: spacing.sm,
+    backgroundColor: colors.surface,
   },
   editActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 8,
+    gap: spacing.sm,
   },
   editButton: {
-    marginTop: 16,
+    marginTop: spacing.lg,
+    borderColor: colors.border,
   },
   dailyBudgetHeader: {
     flexDirection: 'row',
@@ -294,16 +304,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dailyBudgetLabel: {
-    fontSize: 16,
-    color: '#666',
+    ...typography.subhead,
+    color: colors.text.secondary,
   },
   dailyBudgetAmount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2196F3',
+    fontSize: 28,
+    fontWeight: '600',
+    color: colors.accent,
+    letterSpacing: -0.5,
   },
   divider: {
-    marginVertical: 16,
+    marginVertical: spacing.lg,
+    backgroundColor: colors.separator,
   },
   mealBudgetRow: {
     flexDirection: 'row',
@@ -313,50 +325,53 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   mealLabel: {
-    fontSize: 14,
-    marginBottom: 4,
+    ...typography.footnote,
+    color: colors.text.secondary,
+    marginBottom: spacing.xs,
   },
   mealBudget: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: colors.text.primary,
+    letterSpacing: -0.3,
   },
   mealPercent: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 2,
+    ...typography.caption2,
+    color: colors.text.tertiary,
+    marginTop: spacing.xs,
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
   statItem: {
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 22,
+    fontWeight: '600',
+    color: colors.text.primary,
+    letterSpacing: -0.3,
   },
   statLabel: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 4,
+    ...typography.caption1,
+    color: colors.text.tertiary,
+    marginTop: spacing.xs,
   },
   emptyText: {
-    color: '#888',
+    ...typography.subhead,
+    color: colors.text.tertiary,
     textAlign: 'center',
-    padding: 20,
+    padding: spacing.xl,
   },
   recordAmount: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2196F3',
+    ...typography.headline,
+    color: colors.accent,
     alignSelf: 'center',
   },
   bottomPadding: {
-    height: 20,
+    height: spacing.xl,
   },
 });
 

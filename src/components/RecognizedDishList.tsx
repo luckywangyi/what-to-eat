@@ -16,6 +16,7 @@ import {
   DishCategory,
   DISH_CATEGORY_LABELS,
 } from '../types';
+import {colors, typography, spacing, radius} from '../theme';
 
 interface RecognizedDishListProps {
   dishes: ParsedDish[];
@@ -224,30 +225,31 @@ export const RecognizedDishList: React.FC<RecognizedDishListProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.surface,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
   },
   title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    ...typography.title3,
+    color: colors.text.primary,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
+    ...typography.footnote,
+    color: colors.text.secondary,
+    marginTop: spacing.xs,
   },
   selectAllRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.surfaceSecondary,
   },
   selectAllText: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.subhead,
+    color: colors.text.secondary,
   },
   list: {
     flex: 1,
@@ -255,91 +257,95 @@ const styles = StyleSheet.create({
   dishRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingRight: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    paddingVertical: spacing.sm,
+    paddingRight: spacing.sm,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.separator,
   },
   checkboxArea: {
-    padding: 8,
+    padding: spacing.sm,
   },
   dishInfo: {
     flex: 1,
   },
   dishName: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
+    ...typography.headline,
+    color: colors.text.primary,
   },
   dishMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
-    gap: 8,
+    marginTop: spacing.xs,
+    gap: spacing.sm,
   },
   dishPrice: {
-    fontSize: 14,
-    color: '#2196F3',
+    ...typography.subhead,
+    color: colors.accent,
     fontWeight: '600',
   },
   categoryChip: {
     height: 24,
+    backgroundColor: colors.surfaceSecondary,
   },
   actions: {
     flexDirection: 'row',
   },
   emptyContainer: {
-    padding: 40,
+    paddingVertical: spacing.xxxl * 2,
     alignItems: 'center',
   },
   emptyText: {
-    fontSize: 16,
-    color: '#888',
+    ...typography.body,
+    color: colors.text.tertiary,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    gap: 12,
+    padding: spacing.lg,
+    borderTopWidth: 0.5,
+    borderTopColor: colors.border,
+    gap: spacing.md,
+    backgroundColor: colors.surface,
   },
   footerButton: {
     flex: 1,
+    borderRadius: radius.md,
   },
   modal: {
-    backgroundColor: 'white',
-    margin: 20,
-    padding: 20,
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    margin: spacing.xl,
+    padding: spacing.xl,
+    borderRadius: radius.lg,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    ...typography.title3,
+    color: colors.text.primary,
+    marginBottom: spacing.lg,
   },
   input: {
-    marginBottom: 12,
+    marginBottom: spacing.md,
+    backgroundColor: colors.surface,
   },
   label: {
-    fontSize: 14,
+    ...typography.footnote,
     fontWeight: '600',
-    color: '#666',
-    marginBottom: 8,
+    color: colors.text.secondary,
+    marginBottom: spacing.sm,
   },
   categoryContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
   },
   chip: {
-    marginBottom: 4,
+    marginBottom: spacing.xs,
+    backgroundColor: colors.surfaceSecondary,
   },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 8,
+    gap: spacing.sm,
   },
 });
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import {View, StyleSheet} from 'react-native';
-import {Text, ProgressBar, useTheme} from 'react-native-paper';
+import {Text, ProgressBar} from 'react-native-paper';
+import {colors, typography, spacing, radius} from '../theme';
 
 interface BudgetProgressProps {
   dailyBudget: number;
@@ -15,14 +16,13 @@ export const BudgetProgress: React.FC<BudgetProgressProps> = ({
   remaining,
   remainingDays,
 }) => {
-  const theme = useTheme();
   const progress = dailyBudget > 0 ? spent / dailyBudget : 0;
   
   // 根据进度设置颜色
   const getProgressColor = () => {
-    if (progress < 0.5) return theme.colors.primary;
-    if (progress < 0.8) return '#FFA000';
-    return theme.colors.error;
+    if (progress < 0.5) return colors.accent;
+    if (progress < 0.8) return colors.warning;
+    return colors.error;
   };
 
   return (
@@ -30,12 +30,12 @@ export const BudgetProgress: React.FC<BudgetProgressProps> = ({
       <View style={styles.header}>
         <View style={styles.budgetInfo}>
           <Text style={styles.label}>今日预算</Text>
-          <Text style={styles.amount}>¥{dailyBudget.toFixed(1)}</Text>
+          <Text style={styles.amount}>¥{dailyBudget.toFixed(0)}</Text>
         </View>
         <View style={styles.budgetInfo}>
           <Text style={styles.label}>已花费</Text>
           <Text style={[styles.amount, {color: getProgressColor()}]}>
-            ¥{spent.toFixed(1)}
+            ¥{spent.toFixed(0)}
           </Text>
         </View>
         <View style={styles.budgetInfo}>
@@ -44,11 +44,13 @@ export const BudgetProgress: React.FC<BudgetProgressProps> = ({
         </View>
       </View>
       
-      <ProgressBar
-        progress={Math.min(progress, 1)}
-        color={getProgressColor()}
-        style={styles.progressBar}
-      />
+      <View style={styles.progressContainer}>
+        <ProgressBar
+          progress={Math.min(progress, 1)}
+          color={getProgressColor()}
+          style={styles.progressBar}
+        />
+      </View>
       
       <Text style={styles.daysRemaining}>
         本月还剩 {remainingDays} 天
@@ -59,45 +61,45 @@ export const BudgetProgress: React.FC<BudgetProgressProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#fff',
-    padding: 16,
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.md,
+    borderRadius: radius.lg,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: spacing.lg,
   },
   budgetInfo: {
     alignItems: 'center',
+    flex: 1,
   },
   label: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
+    ...typography.footnote,
+    color: colors.text.secondary,
+    marginBottom: spacing.sm,
   },
   amount: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 26,
+    fontWeight: '600',
+    color: colors.text.primary,
+    letterSpacing: -0.5,
+  },
+  progressContainer: {
+    marginBottom: spacing.md,
   },
   progressBar: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#e0e0e0',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.surfaceSecondary,
   },
   daysRemaining: {
-    fontSize: 12,
-    color: '#888',
+    ...typography.caption1,
+    color: colors.text.tertiary,
     textAlign: 'center',
-    marginTop: 8,
   },
 });
 

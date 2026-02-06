@@ -61,12 +61,14 @@ export const usePreferenceStore = create<PreferenceState>((set, get) => ({
     const {preferences} = get();
     const newPreferences = {...preferences, ...prefs};
     
-    set({isLoading: true, error: null});
+    // 先乐观更新状态，避免 Switch 回弹
+    set({preferences: newPreferences, isLoading: true, error: null});
     try {
       await db.savePreferences(newPreferences);
-      set({preferences: newPreferences, isLoading: false});
+      set({isLoading: false});
     } catch (error) {
-      set({error: '保存偏好设置失败', isLoading: false});
+      // 失败则回滚到之前的状态
+      set({preferences, error: '保存偏好设置失败', isLoading: false});
       console.error('Error saving preferences:', error);
     }
   },

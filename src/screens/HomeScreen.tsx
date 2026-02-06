@@ -1,27 +1,48 @@
 import React, {useEffect, useState, useCallback} from 'react';
-import {View, ScrollView, StyleSheet, RefreshControl} from 'react-native';
+import {View, ScrollView, StyleSheet, RefreshControl, Alert} from 'react-native';
 import {Text, Button, ActivityIndicator, Snackbar, FAB} from 'react-native-paper';
 import {useFocusEffect} from '@react-navigation/native';
 import {MealCard} from '../components/MealCard';
 import {BudgetProgress} from '../components/BudgetProgress';
+import {MealDetailModal} from '../components/MealDetailModal';
+import {AnimatedModal} from '../components/AnimatedModal';
+import {PressableScale} from '../components/PressableScale';
 import {useBudgetStore} from '../stores/budgetStore';
 import {usePreferenceStore} from '../stores/preferenceStore';
 import {useMenuStore} from '../stores/menuStore';
 import {usePlanStore} from '../stores/planStore';
 import {useApiConfigStore} from '../stores/apiConfigStore';
 import {generateRecommendation} from '../services/aiService';
-import {MealOption} from '../types';
+import {MealOption, MealType, Dish} from '../types';
+import {colors, typography, spacing, radius} from '../theme';
+
+// 已确认餐次的类型
+interface ConfirmedMeals {
+  breakfast?: { optionId: 'A' | 'B' | 'C'; cost: number };
+  lunch?: { optionId: 'A' | 'B' | 'C'; cost: number };
+  dinner?: { optionId: 'A' | 'B' | 'C'; cost: number };
+}
 
 export const HomeScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarVisible, setSnackbarVisible] = useState(false);
+  const [confirmedMeals, setConfirmedMeals] = useState<ConfirmedMeals>({});
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    mealType: MealType;
+    option: MealOption;
+  } | null>(null);
+  const [detailModal, setDetailModal] = useState<{
+    visible: boolean;
+    mealType: MealType;
+    option: MealOption;
+  } | null>(null);
 
-  const {settings, loadSettings, getDailyBudget, getRemainingBudget, getRemainingDays} = useBudgetStore();
+  const {settings, loadSettings, getDailyBudget, getRemainingBudget, getRemainingDays, addConsumption} = useBudgetStore();
   const {preferences, loadPreferences} = usePreferenceStore();
   const {dishes, loadDishes, getAvailableDishes} = useMenuStore();
-  const {todayPlan, loadTodayPlan, savePlan, loadRecentPlans, getRecentDishNames} = usePlanStore();
+  const {todayPlan, loadTodayPlan, savePlan, loadRecentPlans, getRecentDishNames, recordConsumption} = usePlanStore();
   const {config, loadConfig, isConfigured} = useApiConfigStore();
 
   // 初始加载
@@ -104,8 +125,117 @@ export const HomeScreen: React.FC = () => {
   };
 
   const handleSelectOption = (mealType: string, option: MealOption) => {
-    // 可以记录用户选择
+    // 记录用户选择（用于 UI 显示）
     console.log(`Selected ${mealType} option ${option.optionId}`);
+  };
+
+  // 显示详情弹窗
+  const handleShowDetail = (mealType: MealType, option: MealOption) => {
+    setDetailModal({ visible: true, mealType, option });
+  };
+
+  // 替换菜品
+  const handleReplaceDish = (oldDishId: string, newDish: Dish) => {
+    if (!detailModal || !todayPlan) return;
+
+    const { mealType, option } = detailModal;
+    
+    // 创建新的选项，替换菜品
+    const newDishes = option.dishes.map(d => 
+      d.id === oldDishId ? newDish : d
+    );
+    const newTotalPrice = newDishes.reduce((sum, d) => sum + d.price, 0);
+    const updatedOption: MealOption = {
+      ...option,
+      dishes: newDishes,
+      totalPrice: newTotalPrice,
+    };
+
+    // 更新 todayPlan 中对应的选项
+    const mealRec = todayPlan[mealType];
+    const updatedOptions = mealRec.options.map(o => 
+      o.optionId === option.optionId ? updatedOption : o
+    );
+    
+    const updatedMealRec = {
+      ...mealRec,
+      options: updatedOptions,
+    };
+
+    const updatedPlan = {
+      ...todayPlan,
+      [mealType]: updatedMealRec,
+    };
+
+    // 保存更新后的计划
+    savePlan(updatedPlan);
+
+    // 更新弹窗中显示的选项
+    setDetailModal({
+      ...detailModal,
+      option: updatedOption,
+    });
+
+    setSnackbarMessage(`已将「${option.dishes.find(d => d.id === oldDishId)?.name}」替换为「${newDish.name}」`);
+    setSnackbarVisible(true);
+  };
+
+  // 从详情弹窗确认选择
+  const handleDetailConfirm = () => {
+    if (!detailModal) return;
+    setDetailModal(null);
+    handleConfirmMeal(detailModal.mealType, detailModal.option);
+  };
+
+  // 处理确认用餐
+  const handleConfirmMeal = (mealType: MealType, option: MealOption) => {
+    setPendingConfirm({ mealType, option });
+  };
+
+  // 确认用餐弹窗确认
+  const confirmMealConsumption = async () => {
+    if (!pendingConfirm) return;
+
+    const { mealType, option } = pendingConfirm;
+    
+    try {
+      // 记录消费到数据库
+      await recordConsumption(
+        mealType,
+        option.dishes.map(d => d.id),
+        option.totalPrice
+      );
+      
+      // 更新预算消费
+      await addConsumption(option.totalPrice);
+      
+      // 更新本地已确认状态
+      setConfirmedMeals(prev => ({
+        ...prev,
+        [mealType]: {
+          optionId: option.optionId,
+          cost: option.totalPrice,
+        },
+      }));
+      
+      setSnackbarMessage(`已记录${mealType === 'breakfast' ? '早餐' : mealType === 'lunch' ? '午餐' : '晚餐'}消费 ¥${option.totalPrice.toFixed(0)}`);
+      setSnackbarVisible(true);
+    } catch (error) {
+      setSnackbarMessage('记录消费失败，请重试');
+      setSnackbarVisible(true);
+      console.error('Error confirming meal:', error);
+    } finally {
+      setPendingConfirm(null);
+    }
+  };
+
+  // 计算今日已花费
+  const getTodaySpent = () => {
+    let total = 0;
+    if (confirmedMeals.breakfast) total += confirmedMeals.breakfast.cost;
+    if (confirmedMeals.lunch) total += confirmedMeals.lunch.cost;
+    if (confirmedMeals.dinner) total += confirmedMeals.dinner.cost;
+    return total;
   };
 
   const dailyBudget = getDailyBudget(preferences);
@@ -123,7 +253,7 @@ export const HomeScreen: React.FC = () => {
         {/* 预算概览 */}
         <BudgetProgress
           dailyBudget={dailyBudget}
-          spent={todayPlan?.totalCost || 0}
+          spent={getTodaySpent()}
           remaining={remainingBudget}
           remainingDays={remainingDays}
         />
@@ -143,16 +273,28 @@ export const HomeScreen: React.FC = () => {
             <MealCard
               meal={todayPlan.breakfast}
               onSelectOption={(opt) => handleSelectOption('breakfast', opt)}
+              onConfirmMeal={(opt) => handleConfirmMeal('breakfast', opt)}
+              onShowDetail={(opt) => handleShowDetail('breakfast', opt)}
+              isConfirmed={!!confirmedMeals.breakfast}
+              confirmedOptionId={confirmedMeals.breakfast?.optionId}
             />
             
             <MealCard
               meal={todayPlan.lunch}
               onSelectOption={(opt) => handleSelectOption('lunch', opt)}
+              onConfirmMeal={(opt) => handleConfirmMeal('lunch', opt)}
+              onShowDetail={(opt) => handleShowDetail('lunch', opt)}
+              isConfirmed={!!confirmedMeals.lunch}
+              confirmedOptionId={confirmedMeals.lunch?.optionId}
             />
             
             <MealCard
               meal={todayPlan.dinner}
               onSelectOption={(opt) => handleSelectOption('dinner', opt)}
+              onConfirmMeal={(opt) => handleConfirmMeal('dinner', opt)}
+              onShowDetail={(opt) => handleShowDetail('dinner', opt)}
+              isConfirmed={!!confirmedMeals.dinner}
+              confirmedOptionId={confirmedMeals.dinner?.optionId}
             />
 
             {/* 营养建议 */}
@@ -189,10 +331,69 @@ export const HomeScreen: React.FC = () => {
         disabled={generating}
       />
 
+      {/* 确认用餐弹窗 - Apple 风格动画 */}
+      <AnimatedModal
+        visible={pendingConfirm !== null}
+        onDismiss={() => setPendingConfirm(null)}
+        contentContainerStyle={styles.confirmModal}
+      >
+        <Text style={styles.confirmTitle}>确认用餐</Text>
+        <Text style={styles.confirmMessage}>
+          确认已完成
+          {pendingConfirm?.mealType === 'breakfast' ? '早餐' : 
+           pendingConfirm?.mealType === 'lunch' ? '午餐' : '晚餐'}
+          ？
+        </Text>
+        <View style={styles.confirmDetails}>
+          <Text style={styles.confirmDishes}>
+            {pendingConfirm?.option.dishes.map(d => d.name).join(' + ')}
+          </Text>
+          <Text style={styles.confirmPrice}>
+            ¥{pendingConfirm?.option.totalPrice.toFixed(0)}
+          </Text>
+        </View>
+        <Text style={styles.confirmHint}>
+          确认后将从本月预算中扣除此金额
+        </Text>
+        <View style={styles.confirmActions}>
+          <PressableScale 
+            onPress={() => setPendingConfirm(null)} 
+            style={styles.confirmButtonWrapper}
+          >
+            <View style={[styles.confirmButtonInner, styles.confirmButtonOutlined]}>
+              <Text style={styles.confirmButtonTextOutlined}>取消</Text>
+            </View>
+          </PressableScale>
+          <PressableScale 
+            onPress={confirmMealConsumption} 
+            style={styles.confirmButtonWrapper}
+          >
+            <View style={[styles.confirmButtonInner, styles.confirmButtonContained]}>
+              <Text style={styles.confirmButtonTextContained}>确认</Text>
+            </View>
+          </PressableScale>
+        </View>
+      </AnimatedModal>
+
+      {/* 菜品详情弹窗 */}
+      {detailModal && (
+        <MealDetailModal
+          visible={detailModal.visible}
+          onDismiss={() => setDetailModal(null)}
+          mealType={detailModal.mealType}
+          option={detailModal.option}
+          availableDishes={getAvailableDishes()}
+          onReplaceDish={handleReplaceDish}
+          onConfirm={handleDetailConfirm}
+        />
+      )}
+
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
-        duration={3000}
+        duration={2000}
+        style={styles.snackbar}
+        wrapperStyle={styles.snackbarWrapper}
       >
         {snackbarMessage}
       </Snackbar>
@@ -203,65 +404,152 @@ export const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
   },
   dateText: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.footnote,
+    color: colors.text.secondary,
     textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
   },
   loadingContainer: {
-    padding: 40,
+    paddingVertical: spacing.xxxl * 2,
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
+    marginTop: spacing.lg,
+    ...typography.subhead,
+    color: colors.text.secondary,
   },
   emptyContainer: {
-    padding: 40,
+    paddingVertical: spacing.xxxl * 2,
+    paddingHorizontal: spacing.xl,
     alignItems: 'center',
   },
   emptyText: {
-    fontSize: 18,
-    color: '#666',
-    marginBottom: 8,
+    ...typography.title3,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: '#999',
+    ...typography.subhead,
+    color: colors.text.secondary,
     textAlign: 'center',
+    lineHeight: 22,
   },
   nutritionCard: {
-    backgroundColor: '#E8F5E9',
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
+    backgroundColor: colors.successSubtle,
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.md,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
   },
   nutritionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2E7D32',
-    marginBottom: 8,
+    ...typography.headline,
+    color: colors.success,
+    marginBottom: spacing.sm,
   },
   nutritionText: {
-    fontSize: 14,
-    color: '#388E3C',
-    lineHeight: 20,
+    ...typography.subhead,
+    color: colors.success,
+    lineHeight: 22,
   },
   bottomPadding: {
-    height: 80,
+    height: 100,
   },
   fab: {
     position: 'absolute',
-    right: 16,
-    bottom: 16,
+    right: spacing.lg,
+    bottom: spacing.lg,
+    backgroundColor: colors.accent,
+    borderRadius: radius.xl,
+  },
+  confirmModal: {
+    backgroundColor: colors.surface,
+    padding: spacing.xl,
+    borderRadius: radius.lg,
+  },
+  confirmTitle: {
+    ...typography.title2,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: spacing.md,
+  },
+  confirmMessage: {
+    ...typography.body,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  confirmDetails: {
+    backgroundColor: colors.surfaceSecondary,
+    padding: spacing.lg,
+    borderRadius: radius.md,
+    marginBottom: spacing.md,
+  },
+  confirmDishes: {
+    ...typography.headline,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginBottom: spacing.sm,
+  },
+  confirmPrice: {
+    fontSize: 28,
+    fontWeight: '600',
+    color: colors.accent,
+    textAlign: 'center',
+    letterSpacing: -0.5,
+  },
+  confirmHint: {
+    ...typography.caption1,
+    color: colors.text.tertiary,
+    textAlign: 'center',
+    marginBottom: spacing.lg,
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  confirmButtonWrapper: {
+    flex: 1,
+  },
+  confirmButtonInner: {
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmButtonOutlined: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  confirmButtonContained: {
+    backgroundColor: colors.accent,
+  },
+  confirmButtonTextOutlined: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  confirmButtonTextContained: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.surface,
+  },
+  snackbar: {
+    marginBottom: spacing.lg,
+  },
+  snackbarWrapper: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    pointerEvents: 'box-none',
   },
 });
 

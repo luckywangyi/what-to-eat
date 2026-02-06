@@ -2,9 +2,7 @@ import React, {useState} from 'react';
 import {View, StyleSheet, Image, Alert} from 'react-native';
 import {
   Portal,
-  Modal,
   Text,
-  Button,
   ActivityIndicator,
   SegmentedButtons,
   Snackbar,
@@ -13,6 +11,9 @@ import {ParsedDish, ApiConfig} from '../types';
 import {takePhoto, pickImageFromGallery, estimateImageSize} from '../utils/image';
 import {recognizeMenuFromImage} from '../services/aiService';
 import {RecognizedDishList} from './RecognizedDishList';
+import {AnimatedModal} from './AnimatedModal';
+import {PressableScale} from './PressableScale';
+import {colors, typography, spacing, radius} from '../theme';
 
 type ImportMode = 'preview' | 'quick';
 type Step = 'select' | 'recognizing' | 'preview';
@@ -200,22 +201,18 @@ export const PhotoImportModal: React.FC<PhotoImportModalProps> = ({
 
       {/* 图片选择按钮 */}
       <View style={styles.buttonContainer}>
-        <Button
-          mode="contained"
-          icon="camera"
+        <PressableScale
           onPress={handleTakePhoto}
-          style={styles.actionButton}
+          style={[styles.actionButton, styles.actionButtonContained]}
         >
-          拍照
-        </Button>
-        <Button
-          mode="outlined"
-          icon="image"
+          <Text style={styles.actionButtonTextContained}>拍照</Text>
+        </PressableScale>
+        <PressableScale
           onPress={handlePickFromGallery}
-          style={styles.actionButton}
+          style={[styles.actionButton, styles.actionButtonOutlined]}
         >
-          从相册选择
-        </Button>
+          <Text style={styles.actionButtonTextOutlined}>从相册选择</Text>
+        </PressableScale>
       </View>
 
       {/* API 费用提示 */}
@@ -224,9 +221,9 @@ export const PhotoImportModal: React.FC<PhotoImportModalProps> = ({
       </Text>
 
       {/* 取消按钮 */}
-      <Button mode="text" onPress={handleDismiss} style={styles.cancelButton}>
-        取消
-      </Button>
+      <PressableScale onPress={handleDismiss} style={styles.cancelButton}>
+        <Text style={styles.cancelButtonText}>取消</Text>
+      </PressableScale>
     </View>
   );
 
@@ -244,9 +241,9 @@ export const PhotoImportModal: React.FC<PhotoImportModalProps> = ({
         AI 正在识别菜单内容，请稍候...
       </Text>
       
-      <Button mode="text" onPress={handleBackToSelect} style={styles.cancelButton}>
-        取消
-      </Button>
+      <PressableScale onPress={handleBackToSelect} style={styles.cancelButton}>
+        <Text style={styles.cancelButtonText}>取消</Text>
+      </PressableScale>
     </View>
   );
 
@@ -263,8 +260,8 @@ export const PhotoImportModal: React.FC<PhotoImportModalProps> = ({
   );
 
   return (
-    <Portal>
-      <Modal
+    <>
+      <AnimatedModal
         visible={visible}
         onDismiss={handleDismiss}
         contentContainerStyle={[
@@ -275,91 +272,117 @@ export const PhotoImportModal: React.FC<PhotoImportModalProps> = ({
         {step === 'select' && renderSelectStep()}
         {step === 'recognizing' && renderRecognizingStep()}
         {step === 'preview' && renderPreviewStep()}
-      </Modal>
+      </AnimatedModal>
 
-      <Snackbar
-        visible={snackbarVisible}
-        onDismiss={() => setSnackbarVisible(false)}
-        duration={3000}
-      >
-        {snackbarMessage}
-      </Snackbar>
-    </Portal>
+      <Portal>
+        <Snackbar
+          visible={snackbarVisible}
+          onDismiss={() => setSnackbarVisible(false)}
+          duration={3000}
+        >
+          {snackbarMessage}
+        </Snackbar>
+      </Portal>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
   modal: {
-    backgroundColor: 'white',
-    margin: 20,
-    borderRadius: 12,
-    maxHeight: '80%',
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
   },
   modalFullHeight: {
     height: '85%',
-    marginVertical: 40,
   },
   content: {
-    padding: 20,
+    padding: spacing.xl,
   },
   previewContent: {
     flex: 1,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    ...typography.title2,
     textAlign: 'center',
-    marginBottom: 8,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.subhead,
+    color: colors.text.secondary,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.xl,
+    lineHeight: 22,
   },
   label: {
-    fontSize: 14,
+    ...typography.footnote,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
+    color: colors.text.primary,
+    marginBottom: spacing.sm,
   },
   modeSelector: {
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   modeHint: {
-    fontSize: 12,
-    color: '#888',
-    marginBottom: 20,
+    ...typography.caption1,
+    color: colors.text.tertiary,
+    marginBottom: spacing.xl,
   },
   buttonContainer: {
-    gap: 12,
-    marginBottom: 16,
+    gap: spacing.md,
+    marginBottom: spacing.lg,
   },
   actionButton: {
-    paddingVertical: 4,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionButtonContained: {
+    backgroundColor: colors.accent,
+  },
+  actionButtonOutlined: {
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  actionButtonTextContained: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.surface,
+  },
+  actionButtonTextOutlined: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.text.primary,
   },
   feeHint: {
-    fontSize: 12,
-    color: '#FF9800',
+    ...typography.caption1,
+    color: colors.warning,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   cancelButton: {
-    marginTop: 8,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    ...typography.subhead,
+    color: colors.accent,
   },
   previewImage: {
     width: '100%',
     height: 150,
-    borderRadius: 8,
-    marginBottom: 16,
+    borderRadius: radius.md,
+    marginBottom: spacing.lg,
     resizeMode: 'cover',
   },
   loader: {
-    marginVertical: 20,
+    marginVertical: spacing.xl,
   },
   loadingText: {
-    fontSize: 14,
-    color: '#666',
+    ...typography.subhead,
+    color: colors.text.secondary,
     textAlign: 'center',
   },
 });

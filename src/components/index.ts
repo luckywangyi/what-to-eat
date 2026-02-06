@@ -3,3 +3,7 @@ export {BudgetProgress} from './BudgetProgress';
 export {DishItem} from './DishItem';
 export {RecognizedDishList} from './RecognizedDishList';
 export {PhotoImportModal} from './PhotoImportModal';
+export {MealDetailModal} from './MealDetailModal';
+export {PressableScale} from './PressableScale';
+export {AnimatedModal} from './AnimatedModal';
+export {AnimatedTabIcon} from './AnimatedTabIcon';

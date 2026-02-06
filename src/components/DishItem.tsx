@@ -1,7 +1,8 @@
 import React from 'react';
-import {View, StyleSheet, TouchableOpacity} from 'react-native';
-import {Text, Chip, IconButton, Switch} from 'react-native-paper';
+import {View, StyleSheet} from 'react-native';
+import {Text, IconButton, Switch} from 'react-native-paper';
 import {Dish, DISH_CATEGORY_LABELS, NUTRITION_TAG_LABELS} from '../types';
+import {colors, typography, spacing, radius} from '../theme';
 
 interface DishItemProps {
   dish: Dish;
@@ -23,22 +24,26 @@ export const DishItem: React.FC<DishItemProps> = ({
       <View style={styles.mainContent}>
         <View style={styles.header}>
           <Text style={styles.name}>{dish.name}</Text>
-          <Text style={styles.price}>¥{dish.price.toFixed(1)}</Text>
+          <Text style={styles.price}>¥{dish.price.toFixed(0)}</Text>
         </View>
         
         <View style={styles.tagsContainer}>
-          <Chip compact style={styles.categoryChip} textStyle={styles.chipText}>
-            {DISH_CATEGORY_LABELS[dish.category]}
-          </Chip>
+          <View style={styles.categoryTag}>
+            <Text style={styles.categoryText}>
+              {DISH_CATEGORY_LABELS[dish.category]}
+            </Text>
+          </View>
           {dish.nutritionTags.map((tag) => (
-            <Chip key={tag} compact style={styles.tagChip} textStyle={styles.chipText}>
-              {NUTRITION_TAG_LABELS[tag]}
-            </Chip>
+            <View key={tag} style={styles.nutritionTag}>
+              <Text style={styles.nutritionText}>
+                {NUTRITION_TAG_LABELS[tag]}
+              </Text>
+            </View>
           ))}
         </View>
         
         {dish.windowName && (
-          <Text style={styles.windowName}>窗口: {dish.windowName}</Text>
+          <Text style={styles.windowName}>{dish.windowName}</Text>
         )}
       </View>
       
@@ -47,17 +52,22 @@ export const DishItem: React.FC<DishItemProps> = ({
           <Switch
             value={dish.isAvailable}
             onValueChange={() => onToggleAvailable?.(dish)}
+            color={colors.accent}
+            style={styles.switch}
           />
           <IconButton
-            icon="pencil"
+            icon="pencil-outline"
             size={20}
+            iconColor={colors.text.tertiary}
             onPress={() => onEdit?.(dish)}
+            style={styles.actionButton}
           />
           <IconButton
-            icon="delete"
+            icon="trash-can-outline"
             size={20}
-            iconColor="#e53935"
+            iconColor={colors.error}
             onPress={() => onDelete?.(dish)}
+            style={styles.actionButton}
           />
         </View>
       )}
@@ -68,20 +78,16 @@ export const DishItem: React.FC<DishItemProps> = ({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: '#fff',
-    padding: 12,
-    marginHorizontal: 16,
-    marginVertical: 4,
-    borderRadius: 8,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.1,
-    shadowRadius: 1,
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.xs,
+    borderRadius: radius.md,
   },
   unavailable: {
     opacity: 0.5,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.surfaceSecondary,
   },
   mainContent: {
     flex: 1,
@@ -90,43 +96,62 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   name: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    ...typography.headline,
+    color: colors.text.primary,
+    flex: 1,
+    marginRight: spacing.sm,
   },
   price: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2196F3',
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.accent,
+    letterSpacing: -0.3,
   },
   tagsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 4,
-    marginBottom: 4,
+    gap: spacing.xs,
+    marginBottom: spacing.xs,
   },
-  categoryChip: {
-    backgroundColor: '#E3F2FD',
-    height: 24,
+  categoryTag: {
+    backgroundColor: colors.accentSubtle,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
   },
-  tagChip: {
-    backgroundColor: '#FFF3E0',
-    height: 24,
+  categoryText: {
+    ...typography.caption2,
+    color: colors.accent,
+    fontWeight: '500',
   },
-  chipText: {
-    fontSize: 11,
+  nutritionTag: {
+    backgroundColor: colors.surfaceSecondary,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.sm,
+  },
+  nutritionText: {
+    ...typography.caption2,
+    color: colors.text.secondary,
   },
   windowName: {
-    fontSize: 12,
-    color: '#888',
-    marginTop: 4,
+    ...typography.caption1,
+    color: colors.text.tertiary,
+    marginTop: spacing.xs,
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginLeft: spacing.sm,
+  },
+  switch: {
+    transform: [{scaleX: 0.8}, {scaleY: 0.8}],
+  },
+  actionButton: {
+    margin: 0,
   },
 });
 
