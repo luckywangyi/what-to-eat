@@ -223,25 +223,32 @@ export const BudgetScreen: React.FC = () => {
 
           {/* 柱状图 */}
           <View style={styles.chartContainer}>
-            {/* 预算参考线 */}
-            <View style={[styles.budgetLine, { bottom: (dailyBudget / maxDailySpend) * 100 }]}>
-              <Text style={styles.budgetLineLabel}>日预算 ¥{dailyBudget.toFixed(0)}</Text>
-            </View>
-            
-            <View style={styles.barsRow}>
+            {/* 柱状图区域（预算线与柱状图共享同一坐标系） */}
+            <View style={styles.chartArea}>
+              {/* 预算参考线 */}
+              <View style={[styles.budgetLine, { bottom: `${(dailyBudget / maxDailySpend) * 100}%` }]}>
+                <Text style={styles.budgetLineLabel}>日预算 ¥{dailyBudget.toFixed(0)}</Text>
+              </View>
+
               {dailyChartData.map((day, i) => (
-                <View key={i} style={styles.barGroup}>
-                  <View style={styles.barWrapper}>
-                    {day.total > 0 ? (
-                      <View style={[styles.bar, { height: `${(day.total / maxDailySpend) * 100}%` }]}>
-                        {day.dinner > 0 && <View style={[styles.barSegment, { flex: day.dinner, backgroundColor: '#5856D6' }]} />}
-                        {day.lunch > 0 && <View style={[styles.barSegment, { flex: day.lunch, backgroundColor: colors.accent }]} />}
-                        {day.breakfast > 0 && <View style={[styles.barSegment, { flex: day.breakfast, backgroundColor: '#FF9500' }]} />}
-                      </View>
-                    ) : (
-                      <View style={styles.barEmpty} />
-                    )}
-                  </View>
+                <View key={i} style={styles.barColumn}>
+                  {day.total > 0 ? (
+                    <View style={[styles.bar, { height: `${(day.total / maxDailySpend) * 100}%` }]}>
+                      {day.dinner > 0 && <View style={[styles.barSegment, { flex: day.dinner, backgroundColor: '#5856D6' }]} />}
+                      {day.lunch > 0 && <View style={[styles.barSegment, { flex: day.lunch, backgroundColor: colors.accent }]} />}
+                      {day.breakfast > 0 && <View style={[styles.barSegment, { flex: day.breakfast, backgroundColor: '#FF9500' }]} />}
+                    </View>
+                  ) : (
+                    <View style={styles.barEmpty} />
+                  )}
+                </View>
+              ))}
+            </View>
+
+            {/* 标签行（独立于柱状图区域） */}
+            <View style={styles.chartLabelsRow}>
+              {dailyChartData.map((day, i) => (
+                <View key={i} style={styles.chartLabelGroup}>
                   <Text style={[styles.barLabel, i === 6 && styles.barLabelToday]}>{day.label}</Text>
                   {day.total > 0 && <Text style={styles.barValue}>¥{day.total.toFixed(0)}</Text>}
                 </View>
@@ -445,8 +452,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   },
   // 柱状图
   chartContainer: {
-    height: 140,
+  },
+  chartArea: {
+    height: 100,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
     position: 'relative',
+    gap: spacing.xs,
   },
   budgetLine: {
     position: 'absolute',
@@ -464,20 +476,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     right: 0,
     top: -14,
   },
-  barsRow: {
-    flexDirection: 'row',
+  barColumn: {
     flex: 1,
-    alignItems: 'flex-end',
-    gap: spacing.xs,
-    paddingBottom: 24,
-  },
-  barGroup: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  barWrapper: {
-    width: '100%',
-    height: 100,
+    height: '100%',
     justifyContent: 'flex-end',
     alignItems: 'center',
   },
@@ -496,10 +497,18 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
     borderRadius: 2,
     backgroundColor: colors.surfaceSecondary,
   },
+  chartLabelsRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: 4,
+  },
+  chartLabelGroup: {
+    flex: 1,
+    alignItems: 'center',
+  },
   barLabel: {
     ...typography.caption2,
     color: colors.text.tertiary,
-    marginTop: 4,
   },
   barLabelToday: {
     color: colors.accent,
