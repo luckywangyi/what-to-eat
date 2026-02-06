@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback} from 'react';
+import React, {useState, useEffect, useCallback, useMemo} from 'react';
 import {View, ScrollView, StyleSheet, Alert} from 'react-native';
 import {
   Text,
@@ -28,11 +28,14 @@ import {
   DISH_CATEGORY_LABELS,
   NUTRITION_TAG_LABELS,
 } from '../types';
-import {colors, typography, spacing, radius} from '../theme';
+import {typography, spacing, radius, ThemeColors} from '../theme';
+import {useAppTheme} from '../context/ThemeContext';
 
 type ModalMode = 'none' | 'addCanteen' | 'editCanteen' | 'addDish' | 'editDish';
 
 export const MenuScreen: React.FC = () => {
+  const {colors} = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [modalMode, setModalMode] = useState<ModalMode>('none');
   const [selectedCanteen, setSelectedCanteen] = useState<Canteen | null>(null);
   const [editingDish, setEditingDish] = useState<Dish | null>(null);
@@ -40,6 +43,7 @@ export const MenuScreen: React.FC = () => {
   const [photoImportVisible, setPhotoImportVisible] = useState(false);
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   
   // 表单状态
   const [canteenName, setCanteenName] = useState('');
@@ -264,9 +268,26 @@ export const MenuScreen: React.FC = () => {
     });
   };
 
+  // 搜索过滤后的菜品
+  const filteredDishes = useMemo(() => {
+    if (!searchQuery.trim()) return dishes;
+    const q = searchQuery.trim().toLowerCase();
+    return dishes.filter(d => 
+      d.name.toLowerCase().includes(q) || 
+      DISH_CATEGORY_LABELS[d.category]?.includes(q)
+    );
+  }, [dishes, searchQuery]);
+
+  // 搜索时需要显示的食堂（有匹配菜品的食堂）
+  const visibleCanteens = useMemo(() => {
+    if (!searchQuery.trim()) return canteens;
+    const canteenIds = new Set(filteredDishes.map(d => d.canteenId));
+    return canteens.filter(c => canteenIds.has(c.id));
+  }, [canteens, filteredDishes, searchQuery]);
+
   // 渲染食堂列表
   const renderCanteenSection = (canteen: Canteen) => {
-    const canteenDishes = dishes.filter(d => d.canteenId === canteen.id);
+    const canteenDishes = (searchQuery.trim() ? filteredDishes : dishes).filter(d => d.canteenId === canteen.id);
     const isExpanded = expandedCanteens.has(canteen.id);
     
     return (
@@ -332,14 +353,40 @@ export const MenuScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView}>
+        {/* 搜索栏 */}
+        {canteens.length > 0 && (
+          <View style={styles.searchContainer}>
+            <TextInput
+              placeholder="搜索菜品名称或分类..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              mode="outlined"
+              dense
+              left={<TextInput.Icon icon="magnify" />}
+              right={searchQuery ? <TextInput.Icon icon="close" onPress={() => setSearchQuery('')} /> : undefined}
+              style={styles.searchInput}
+              outlineStyle={styles.searchOutline}
+            />
+            {searchQuery.trim() !== '' && (
+              <Text style={styles.searchResult}>
+                找到 {filteredDishes.length} 个菜品
+              </Text>
+            )}
+          </View>
+        )}
+
         {canteens.length === 0 ? (
           <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>🏪</Text>
             <Text style={styles.emptyTitle}>还没有添加食堂</Text>
-            <Text style={styles.emptySubtitle}>点击右下角按钮添加食堂</Text>
+            <Text style={styles.emptySubtitle}>添加食堂和菜品后，AI 才能为你推荐每日三餐</Text>
+            <PressableScale onPress={openAddCanteenModal} style={styles.emptyActionButton}>
+              <Text style={styles.emptyActionText}>添加第一个食堂</Text>
+            </PressableScale>
           </View>
         ) : (
           <View style={styles.canteenList}>
-            {canteens.map(renderCanteenSection)}
+            {visibleCanteens.map(renderCanteenSection)}
           </View>
         )}
       </ScrollView>
@@ -362,6 +409,8 @@ export const MenuScreen: React.FC = () => {
         ]}
         onStateChange={({open}) => setFabOpen(open)}
         style={styles.fabGroup}
+        fabStyle={styles.fab}
+        backdropColor="transparent"
       />
 
       {/* 拍照导入弹窗 */}
@@ -507,7 +556,7 @@ export const MenuScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -515,10 +564,32 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  searchContainer: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+  },
+  searchInput: {
+    backgroundColor: colors.surface,
+    fontSize: 14,
+  },
+  searchOutline: {
+    borderRadius: radius.md,
+    borderColor: colors.border,
+  },
+  searchResult: {
+    ...typography.caption1,
+    color: colors.text.tertiary,
+    marginTop: spacing.xs,
+    marginLeft: spacing.xs,
+  },
   emptyContainer: {
     paddingVertical: spacing.xxxl * 2,
     paddingHorizontal: spacing.xl,
     alignItems: 'center',
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: spacing.lg,
   },
   emptyTitle: {
     ...typography.title3,
@@ -528,6 +599,20 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     ...typography.subhead,
     color: colors.text.secondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: spacing.lg,
+  },
+  emptyActionButton: {
+    backgroundColor: colors.accent,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+  },
+  emptyActionText: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.surface,
   },
   emptyText: {
     padding: spacing.lg,
@@ -580,6 +665,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: spacing.md,
     bottom: spacing.md,
+  },
+  fab: {
+    elevation: 0,
+    shadowOpacity: 0,
+    backgroundColor: colors.accent,
   },
   modal: {
     backgroundColor: colors.surface,

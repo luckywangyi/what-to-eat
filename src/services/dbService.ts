@@ -475,6 +475,116 @@ export async function saveApiConfig(config: ApiConfig): Promise<void> {
   );
 }
 
+// ===== 数据导出导入 =====
+
+export async function exportAllData(): Promise<string> {
+  if (!db) throw new Error('Database not initialized');
+
+  // 导出食堂
+  const [canteensResult] = await db.executeSql('SELECT * FROM canteens');
+  const canteens = [];
+  for (let i = 0; i < canteensResult.rows.length; i++) {
+    canteens.push(canteensResult.rows.item(i));
+  }
+
+  // 导出菜品
+  const [dishesResult] = await db.executeSql('SELECT * FROM dishes');
+  const dishes = [];
+  for (let i = 0; i < dishesResult.rows.length; i++) {
+    dishes.push(dishesResult.rows.item(i));
+  }
+
+  // 导出消费记录
+  const [recordsResult] = await db.executeSql('SELECT * FROM consumption_records');
+  const records = [];
+  for (let i = 0; i < recordsResult.rows.length; i++) {
+    records.push(recordsResult.rows.item(i));
+  }
+
+  // 导出偏好设置
+  const [prefsResult] = await db.executeSql('SELECT * FROM preferences WHERE id = 1');
+  const preferences = prefsResult.rows.length > 0 ? prefsResult.rows.item(0) : null;
+
+  // 导出预算设置
+  const [budgetResult] = await db.executeSql('SELECT * FROM budget_settings WHERE id = 1');
+  const budget = budgetResult.rows.length > 0 ? budgetResult.rows.item(0) : null;
+
+  const exportData = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    canteens,
+    dishes,
+    consumptionRecords: records,
+    preferences,
+    budgetSettings: budget,
+  };
+
+  return JSON.stringify(exportData, null, 2);
+}
+
+export async function importAllData(jsonString: string): Promise<{canteens: number; dishes: number; records: number}> {
+  if (!db) throw new Error('Database not initialized');
+
+  const data = JSON.parse(jsonString);
+
+  if (!data.version || !data.canteens || !data.dishes) {
+    throw new Error('无效的备份文件格式');
+  }
+
+  // 清空现有数据
+  await db.executeSql('DELETE FROM consumption_records');
+  await db.executeSql('DELETE FROM dishes');
+  await db.executeSql('DELETE FROM canteens');
+
+  // 导入食堂
+  for (const c of data.canteens) {
+    await db.executeSql(
+      'INSERT INTO canteens (id, name, location, windows, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [c.id, c.name, c.location, c.windows, c.created_at, c.updated_at]
+    );
+  }
+
+  // 导入菜品
+  for (const d of data.dishes) {
+    await db.executeSql(
+      'INSERT INTO dishes (id, name, price, category, nutrition_tags, canteen_id, window_name, is_available, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [d.id, d.name, d.price, d.category, d.nutrition_tags, d.canteen_id, d.window_name, d.is_available, d.created_at, d.updated_at]
+    );
+  }
+
+  // 导入消费记录
+  let recordCount = 0;
+  if (data.consumptionRecords) {
+    for (const r of data.consumptionRecords) {
+      await db.executeSql(
+        'INSERT INTO consumption_records (id, date, meal_type, dish_ids, actual_cost, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [r.id, r.date, r.meal_type, r.dish_ids, r.actual_cost, r.created_at]
+      );
+      recordCount++;
+    }
+  }
+
+  // 导入偏好设置
+  if (data.preferences) {
+    const p = data.preferences;
+    await db.executeSql(
+      'UPDATE preferences SET spicy_level = ?, excluded_foods = ?, diet_goal = ?, is_vegetarian = ?, is_halal = ?, meal_budget_ratio = ? WHERE id = 1',
+      [p.spicy_level, p.excluded_foods, p.diet_goal, p.is_vegetarian, p.is_halal, p.meal_budget_ratio]
+    );
+  }
+
+  // 导入预算设置
+  if (data.budgetSettings) {
+    const b = data.budgetSettings;
+    await db.executeSql(
+      'UPDATE budget_settings SET monthly_budget = ?, start_date = ?, consumed = ? WHERE id = 1',
+      [b.monthly_budget, b.start_date, b.consumed]
+    );
+  }
+
+  return {canteens: data.canteens.length, dishes: data.dishes.length, records: recordCount};
+}
+
 // 关闭数据库连接
 export async function closeDatabase(): Promise<void> {
   if (db) {

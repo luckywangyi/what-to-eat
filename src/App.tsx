@@ -8,22 +8,27 @@ import {
   Text,
 } from 'react-native-paper';
 import {DefaultTheme} from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {HomeScreen} from './screens/HomeScreen';
 import {MenuScreen} from './screens/MenuScreen';
 import {BudgetScreen} from './screens/BudgetScreen';
 import {SettingsScreen} from './screens/SettingsScreen';
 import {AnimatedTabIcon} from './components/AnimatedTabIcon';
+import {OnboardingGuide} from './components/OnboardingGuide';
 import {initDatabase} from './services/dbService';
 import {useThemeStore} from './stores/themeStore';
 import {ThemeProvider} from './context/ThemeContext';
 import {themes} from './theme';
+
+const ONBOARDING_KEY = '@what_to_eat_onboarding_complete';
 
 const Tab = createBottomTabNavigator();
 
 function App(): React.JSX.Element {
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const {currentTheme, loadTheme, isLoaded: themeLoaded} = useThemeStore();
 
   // 获取当前主题颜色
@@ -70,11 +75,25 @@ function App(): React.JSX.Element {
     try {
       await loadTheme();
       await initDatabase();
+      // 检查是否需要显示引导
+      const onboardingDone = await AsyncStorage.getItem(ONBOARDING_KEY);
+      if (!onboardingDone) {
+        setShowOnboarding(true);
+      }
       setIsInitialized(true);
     } catch (error) {
       console.error('Failed to initialize database:', error);
       setInitError('数据库初始化失败');
     }
+  };
+
+  const handleOnboardingComplete = async () => {
+    try {
+      await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
+    } catch (e) {
+      // ignore
+    }
+    setShowOnboarding(false);
   };
 
   if (!isInitialized) {
@@ -94,6 +113,19 @@ function App(): React.JSX.Element {
     );
   }
 
+  if (showOnboarding) {
+    return (
+      <ThemeProvider>
+        <PaperProvider theme={paperTheme}>
+          <View style={{flex: 1, backgroundColor: colors.background}}>
+            <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+            <OnboardingGuide onComplete={handleOnboardingComplete} />
+          </View>
+        </PaperProvider>
+      </ThemeProvider>
+    );
+  }
+
   return (
     <ThemeProvider>
       <PaperProvider theme={paperTheme}>
@@ -102,7 +134,7 @@ function App(): React.JSX.Element {
             <StatusBar barStyle="dark-content" backgroundColor={colors.surface} />
           <Tab.Navigator
             screenOptions={({route}) => ({
-              animation: 'fade',
+              animation: 'none',
               sceneStyle: {
                 backgroundColor: colors.background,
               },

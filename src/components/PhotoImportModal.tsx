@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useMemo} from 'react';
 import {View, StyleSheet, Image, Alert} from 'react-native';
 import {
   Portal,
@@ -13,7 +13,8 @@ import {recognizeMenuFromImage} from '../services/aiService';
 import {RecognizedDishList} from './RecognizedDishList';
 import {AnimatedModal} from './AnimatedModal';
 import {PressableScale} from './PressableScale';
-import {colors, typography, spacing, radius} from '../theme';
+import {typography, spacing, radius, ThemeColors} from '../theme';
+import {useAppTheme} from '../context/ThemeContext';
 
 type ImportMode = 'preview' | 'quick';
 type Step = 'select' | 'recognizing' | 'preview';
@@ -31,6 +32,8 @@ export const PhotoImportModal: React.FC<PhotoImportModalProps> = ({
   onImport,
   apiConfig,
 }) => {
+  const {colors} = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [step, setStep] = useState<Step>('select');
   const [importMode, setImportMode] = useState<ImportMode>('preview');
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -287,7 +290,7 @@ export const PhotoImportModal: React.FC<PhotoImportModalProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   modal: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

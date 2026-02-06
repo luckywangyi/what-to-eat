@@ -15,7 +15,7 @@
  * - 无重度模糊或深色覆盖
  */
 
-import React, {useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   StyleSheet,
   Pressable,
@@ -58,23 +58,23 @@ export const AnimatedModal: React.FC<AnimatedModalProps> = ({
   dismissable = true,
 }) => {
   const progress = useSharedValue(0);
-  const isVisible = useSharedValue(false);
+  const [shouldRender, setShouldRender] = useState(false);
 
   useEffect(() => {
     if (visible) {
-      isVisible.value = true;
+      setShouldRender(true);
       progress.value = withSpring(1, appleSpring);
     } else {
       progress.value = withTiming(0, appleTiming, (finished) => {
         if (finished) {
-          runOnJS(setHidden)();
+          runOnJS(handleAnimationComplete)();
         }
       });
     }
   }, [visible]);
 
-  const setHidden = () => {
-    isVisible.value = false;
+  const handleAnimationComplete = () => {
+    setShouldRender(false);
   };
 
   const backdropStyle = useAnimatedStyle(() => ({
@@ -107,8 +107,8 @@ export const AnimatedModal: React.FC<AnimatedModalProps> = ({
     }
   };
 
-  // 不渲染不可见的 modal
-  if (!visible && progress.value === 0) {
+  // 不渲染不可见的 modal - 使用 React state 确保动画结束后移除 Portal 内容
+  if (!shouldRender) {
     return null;
   }
 

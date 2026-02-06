@@ -1,8 +1,9 @@
-import React, {useState} from 'react';
+import React, {useState, useMemo} from 'react';
 import {View, StyleSheet, ScrollView} from 'react-native';
 import {Text, IconButton} from 'react-native-paper';
 import {MealOption, Dish, MEAL_TYPE_LABELS, MealType} from '../types';
-import {colors, typography, spacing, radius} from '../theme';
+import {typography, spacing, radius, ThemeColors} from '../theme';
+import {useAppTheme} from '../context/ThemeContext';
 import {AnimatedModal} from './AnimatedModal';
 import {PressableScale} from './PressableScale';
 
@@ -25,6 +26,8 @@ export const MealDetailModal: React.FC<MealDetailModalProps> = ({
   onReplaceDish,
   onConfirm,
 }) => {
+  const {colors} = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [replacingDishId, setReplacingDishId] = useState<string | null>(null);
 
   // 找到价格相近的替代菜品
@@ -62,6 +65,7 @@ export const MealDetailModal: React.FC<MealDetailModalProps> = ({
       onDismiss={onDismiss}
       contentContainerStyle={styles.modal}
     >
+      <View style={styles.modalInner}>
         <View style={styles.header}>
           <Text style={styles.title}>
             {MEAL_TYPE_LABELS[mealType]} - 选项 {option.optionId}
@@ -80,7 +84,11 @@ export const MealDetailModal: React.FC<MealDetailModalProps> = ({
           <Text style={styles.totalAmount}>¥{option.totalPrice.toFixed(0)}</Text>
         </View>
 
-        <ScrollView style={styles.dishList}>
+        <ScrollView
+          style={styles.dishList}
+          contentContainerStyle={styles.dishListContent}
+          showsVerticalScrollIndicator={false}
+        >
           {replacingDishId && currentDish ? (
             // 替换菜品视图
             <View style={styles.replaceView}>
@@ -160,16 +168,20 @@ export const MealDetailModal: React.FC<MealDetailModalProps> = ({
             </PressableScale>
           </View>
         )}
+      </View>
     </AnimatedModal>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   modal: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    maxHeight: '80%',
+    maxHeight: '90%',
     minWidth: 320,
+  },
+  modalInner: {
+    maxHeight: '100%',
   },
   header: {
     flexDirection: 'row',
@@ -209,7 +221,10 @@ const styles = StyleSheet.create({
   },
   dishList: {
     paddingHorizontal: spacing.lg,
-    maxHeight: 300,
+    flexShrink: 1,
+  },
+  dishListContent: {
+    paddingBottom: spacing.sm,
   },
   dishItem: {
     flexDirection: 'row',

@@ -1,6 +1,6 @@
-import React, {useEffect, useState, useCallback} from 'react';
-import {View, ScrollView, StyleSheet, RefreshControl, Alert} from 'react-native';
-import {Text, Button, ActivityIndicator, Snackbar, FAB} from 'react-native-paper';
+import React, {useEffect, useState, useCallback, useMemo} from 'react';
+import {View, ScrollView, StyleSheet, RefreshControl, Alert, Vibration} from 'react-native';
+import {Text, Snackbar, FAB} from 'react-native-paper';
 import {useFocusEffect} from '@react-navigation/native';
 import {MealCard} from '../components/MealCard';
 import {BudgetProgress} from '../components/BudgetProgress';
@@ -12,9 +12,11 @@ import {usePreferenceStore} from '../stores/preferenceStore';
 import {useMenuStore} from '../stores/menuStore';
 import {usePlanStore} from '../stores/planStore';
 import {useApiConfigStore} from '../stores/apiConfigStore';
+import {useFavoriteStore} from '../stores/favoriteStore';
 import {generateRecommendation} from '../services/aiService';
-import {MealOption, MealType, Dish} from '../types';
-import {colors, typography, spacing, radius} from '../theme';
+import {MealOption, MealType, Dish, MEAL_TYPE_LABELS} from '../types';
+import {typography, spacing, radius, ThemeColors} from '../theme';
+import {useAppTheme} from '../context/ThemeContext';
 
 // 已确认餐次的类型
 interface ConfirmedMeals {
@@ -33,6 +35,7 @@ export const HomeScreen: React.FC = () => {
     mealType: MealType;
     option: MealOption;
   } | null>(null);
+  const [showWeekHistory, setShowWeekHistory] = useState(false);
   const [detailModal, setDetailModal] = useState<{
     visible: boolean;
     mealType: MealType;
@@ -42,8 +45,11 @@ export const HomeScreen: React.FC = () => {
   const {settings, loadSettings, getDailyBudget, getRemainingBudget, getRemainingDays, addConsumption} = useBudgetStore();
   const {preferences, loadPreferences} = usePreferenceStore();
   const {dishes, loadDishes, getAvailableDishes} = useMenuStore();
-  const {todayPlan, loadTodayPlan, savePlan, loadRecentPlans, getRecentDishNames, recordConsumption} = usePlanStore();
+  const {todayPlan, loadTodayPlan, savePlan, loadRecentPlans, getRecentDishNames, recordConsumption, consumptionRecords, loadConsumptionRecords} = usePlanStore();
   const {config, loadConfig, isConfigured} = useApiConfigStore();
+  const {loadFavorites} = useFavoriteStore();
+  const {colors} = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   // 初始加载
   useFocusEffect(
@@ -60,6 +66,8 @@ export const HomeScreen: React.FC = () => {
       loadTodayPlan(),
       loadRecentPlans(),
       loadConfig(),
+      loadFavorites(),
+      loadConsumptionRecords(7),
     ]);
   };
 
@@ -209,6 +217,9 @@ export const HomeScreen: React.FC = () => {
       // 更新预算消费
       await addConsumption(option.totalPrice);
       
+      // 触觉反馈
+      Vibration.vibrate(50);
+      
       // 更新本地已确认状态
       setConfirmedMeals(prev => ({
         ...prev,
@@ -242,6 +253,31 @@ export const HomeScreen: React.FC = () => {
   const remainingBudget = getRemainingBudget();
   const remainingDays = getRemainingDays();
 
+  // 问候语
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 9) return '早上好';
+    if (hour < 11) return '上午好';
+    if (hour < 14) return '中午好';
+    if (hour < 18) return '下午好';
+    return '晚上好';
+  };
+
+  const getDateString = () => {
+    const d = new Date();
+    const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
+    return `${d.getMonth() + 1}月${d.getDate()}日 周${weekDays[d.getDay()]}`;
+  };
+
+  const tips = [
+    '均衡饮食，元气满满',
+    '今天也要好好吃饭哦',
+    '合理搭配，营养加倍',
+    '吃好每一餐，开心每一天',
+    '健康饮食，从今天开始',
+  ];
+  const todayTip = tips[new Date().getDate() % tips.length];
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -250,6 +286,13 @@ export const HomeScreen: React.FC = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+        {/* 问候语卡片 */}
+        <View style={styles.greetingCard}>
+          <Text style={styles.greetingText}>{getGreeting()} 👋</Text>
+          <Text style={styles.greetingDate}>{getDateString()}</Text>
+          <Text style={styles.greetingTip}>{todayTip}</Text>
+        </View>
+
         {/* 预算概览 */}
         <BudgetProgress
           dailyBudget={dailyBudget}
@@ -260,8 +303,21 @@ export const HomeScreen: React.FC = () => {
 
         {/* 今日餐单 */}
         {generating ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" />
+          <View style={styles.skeletonContainer}>
+            {[1, 2, 3].map(i => (
+              <View key={i} style={styles.skeletonCard}>
+                <View style={styles.skeletonHeader}>
+                  <View style={styles.skeletonTitle} />
+                  <View style={styles.skeletonBadge} />
+                </View>
+                <View style={styles.skeletonOptions}>
+                  <View style={styles.skeletonOption} />
+                  <View style={styles.skeletonOption} />
+                  <View style={styles.skeletonOption} />
+                </View>
+                <View style={styles.skeletonButton} />
+              </View>
+            ))}
             <Text style={styles.loadingText}>AI 正在生成推荐...</Text>
           </View>
         ) : todayPlan ? (
@@ -307,14 +363,57 @@ export const HomeScreen: React.FC = () => {
           </>
         ) : (
           <View style={styles.emptyContainer}>
+            <Text style={styles.emptyIcon}>🍽️</Text>
             <Text style={styles.emptyText}>今日还没有生成推荐</Text>
             <Text style={styles.emptySubtext}>
               {dishes.length === 0
-                ? '请先添加食堂菜单'
+                ? '请先前往「菜单管理」添加食堂菜品'
                 : !isConfigured
-                ? '请先配置 API Key'
-                : '点击下方按钮生成今日推荐'}
+                ? '请先前往「设置」配置 API Key'
+                : '点击下方按钮，让 AI 为你规划今日三餐'}
             </Text>
+            {dishes.length > 0 && isConfigured && (
+              <PressableScale onPress={handleGeneratePlan} style={styles.emptyButton}>
+                <Text style={styles.emptyButtonText}>生成今日推荐</Text>
+              </PressableScale>
+            )}
+          </View>
+        )}
+
+        {/* 本周用餐历史 */}
+        <PressableScale
+          onPress={() => setShowWeekHistory(!showWeekHistory)}
+          style={styles.weekHistoryToggle}
+        >
+          <Text style={styles.weekHistoryToggleText}>
+            📅 本周用餐记录 ({consumptionRecords.length} 条)
+          </Text>
+          <Text style={styles.weekHistoryArrow}>
+            {showWeekHistory ? '收起' : '展开'}
+          </Text>
+        </PressableScale>
+
+        {showWeekHistory && (
+          <View style={styles.weekHistoryContainer}>
+            {consumptionRecords.length === 0 ? (
+              <View style={styles.weekHistoryEmpty}>
+                <Text style={styles.weekHistoryEmptyText}>本周还没有用餐记录</Text>
+              </View>
+            ) : (
+              consumptionRecords.slice(0, 21).map(record => (
+                <View key={record.id} style={styles.weekHistoryItem}>
+                  <View style={styles.weekHistoryLeft}>
+                    <Text style={styles.weekHistoryMeal}>
+                      {MEAL_TYPE_LABELS[record.mealType]}
+                    </Text>
+                    <Text style={styles.weekHistoryDate}>{record.date}</Text>
+                  </View>
+                  <Text style={styles.weekHistoryCost}>
+                    ¥{record.actualCost.toFixed(0)}
+                  </Text>
+                </View>
+              ))
+            )}
           </View>
         )}
 
@@ -401,13 +500,39 @@ export const HomeScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
+  },
+  greetingCard: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+  },
+  greetingText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: colors.text.primary,
+    letterSpacing: -0.3,
+    marginBottom: spacing.xs,
+  },
+  greetingDate: {
+    ...typography.subhead,
+    color: colors.text.secondary,
+    marginBottom: spacing.sm,
+  },
+  greetingTip: {
+    ...typography.footnote,
+    color: colors.text.tertiary,
+    fontStyle: 'italic',
   },
   dateText: {
     ...typography.footnote,
@@ -416,9 +541,54 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.xs,
   },
-  loadingContainer: {
-    paddingVertical: spacing.xxxl * 2,
+  // 骨架屏样式
+  skeletonContainer: {
+    paddingVertical: spacing.md,
     alignItems: 'center',
+  },
+  skeletonCard: {
+    backgroundColor: colors.surface,
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.sm,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    width: '100%',
+    maxWidth: 500,
+    alignSelf: 'center',
+  },
+  skeletonHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  skeletonTitle: {
+    width: 80,
+    height: 20,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  skeletonBadge: {
+    width: 60,
+    height: 16,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  skeletonOptions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  skeletonOption: {
+    flex: 1,
+    height: 88,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  skeletonButton: {
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSecondary,
   },
   loadingText: {
     marginTop: spacing.lg,
@@ -430,6 +600,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     alignItems: 'center',
   },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: spacing.lg,
+  },
   emptyText: {
     ...typography.title3,
     color: colors.text.primary,
@@ -440,6 +614,18 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
     lineHeight: 22,
+    marginBottom: spacing.lg,
+  },
+  emptyButton: {
+    backgroundColor: colors.accent,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+  },
+  emptyButtonText: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.surface,
   },
   nutritionCard: {
     backgroundColor: colors.successSubtle,
@@ -457,6 +643,68 @@ const styles = StyleSheet.create({
     ...typography.subhead,
     color: colors.success,
     lineHeight: 22,
+  },
+  // 本周历史
+  weekHistoryToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+  },
+  weekHistoryToggleText: {
+    ...typography.subhead,
+    color: colors.text.primary,
+    fontWeight: '600',
+  },
+  weekHistoryArrow: {
+    ...typography.caption1,
+    color: colors.accent,
+  },
+  weekHistoryContainer: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
+  weekHistoryEmpty: {
+    padding: spacing.xl,
+    alignItems: 'center',
+  },
+  weekHistoryEmptyText: {
+    ...typography.footnote,
+    color: colors.text.tertiary,
+  },
+  weekHistoryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.separator,
+  },
+  weekHistoryLeft: {
+    flex: 1,
+  },
+  weekHistoryMeal: {
+    ...typography.subhead,
+    color: colors.text.primary,
+    fontWeight: '500',
+  },
+  weekHistoryDate: {
+    ...typography.caption1,
+    color: colors.text.tertiary,
+    marginTop: 2,
+  },
+  weekHistoryCost: {
+    ...typography.headline,
+    color: colors.accent,
   },
   bottomPadding: {
     height: 100,
@@ -554,3 +802,4 @@ const styles = StyleSheet.create({
 });
 
 export default HomeScreen;
+

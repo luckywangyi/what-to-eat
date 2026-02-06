@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useState, useMemo} from 'react';
 import {View, StyleSheet, ScrollView, TouchableOpacity} from 'react-native';
 import {
   Text,
@@ -16,7 +16,8 @@ import {
   DishCategory,
   DISH_CATEGORY_LABELS,
 } from '../types';
-import {colors, typography, spacing, radius} from '../theme';
+import {typography, spacing, radius, ThemeColors} from '../theme';
+import {useAppTheme} from '../context/ThemeContext';
 
 interface RecognizedDishListProps {
   dishes: ParsedDish[];
@@ -31,6 +32,8 @@ export const RecognizedDishList: React.FC<RecognizedDishListProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const {colors} = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [editingDish, setEditingDish] = useState<ParsedDish | null>(null);
   const [editName, setEditName] = useState('');
   const [editPrice, setEditPrice] = useState('');
@@ -222,7 +225,7 @@ export const RecognizedDishList: React.FC<RecognizedDishListProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.surface,

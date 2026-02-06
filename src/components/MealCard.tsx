@@ -1,9 +1,11 @@
-import React, {useState} from 'react';
+import React, {useState, useMemo} from 'react';
 import {View, StyleSheet, TouchableOpacity} from 'react-native';
 import {Text, IconButton} from 'react-native-paper';
 import {MealRecommendation, MealOption, MEAL_TYPE_LABELS} from '../types';
-import {colors, typography, spacing, radius} from '../theme';
+import {typography, spacing, radius, ThemeColors} from '../theme';
+import {useAppTheme} from '../context/ThemeContext';
 import {PressableScale} from './PressableScale';
+import {useFavoriteStore} from '../stores/favoriteStore';
 
 interface MealCardProps {
   meal: MealRecommendation;
@@ -27,6 +29,9 @@ export const MealCard: React.FC<MealCardProps> = ({
   confirmedOptionId,
 }) => {
   const [selected, setSelected] = useState<'A' | 'B' | 'C'>(selectedOptionId || 'A');
+  const {addFavorite, removeFavorite, isFavorited, favorites} = useFavoriteStore();
+  const {colors} = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const handleSelectOption = (option: MealOption) => {
     if (isConfirmed) return; // 已确认则不能再选择
@@ -66,26 +71,51 @@ export const MealCard: React.FC<MealCardProps> = ({
             <Text style={styles.budgetHint}>建议 ¥{meal.suggestedBudget.toFixed(0)}</Text>
           )}
         </View>
-        {!isConfirmed && onRefresh && (
-          <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
+        <View style={styles.headerRight}>
+          {/* 收藏按钮 */}
+          {(() => {
+            const selectedOption = getSelectedOption();
+            if (!selectedOption) return null;
+            const dishNames = selectedOption.dishes.map(d => d.name);
+            const faved = isFavorited(meal.mealType, dishNames);
+            const handleFav = () => {
+              if (faved) {
+                const match = favorites.find(
+                  f => f.mealType === meal.mealType && [...f.dishes.map(d => d.name)].sort().join(',') === [...dishNames].sort().join(',')
+                );
+                if (match) removeFavorite(match.id);
+              } else {
+                addFavorite(meal.mealType, selectedOption);
+              }
+            };
+            return (
+              <IconButton
+                icon={faved ? 'heart' : 'heart-outline'}
+                size={20}
+                iconColor={faved ? '#FF3B30' : colors.text.tertiary}
+                style={styles.refreshIcon}
+                onPress={handleFav}
+              />
+            );
+          })()}
+          {!isConfirmed && onRefresh && (
             <IconButton
               icon="refresh"
               size={20}
               iconColor={colors.text.tertiary}
               style={styles.refreshIcon}
+              onPress={onRefresh}
             />
-          </TouchableOpacity>
-        )}
-        {isConfirmed && (
-          <View style={styles.checkMark}>
+          )}
+          {isConfirmed && (
             <IconButton
               icon="check-circle"
               size={24}
               iconColor={colors.success}
               style={styles.refreshIcon}
             />
-          </View>
-        )}
+          )}
+        </View>
       </View>
 
       {/* 选项列表 */}
@@ -164,7 +194,7 @@ export const MealCard: React.FC<MealCardProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
     marginHorizontal: spacing.lg,
@@ -203,11 +233,9 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontWeight: '600',
   },
-  refreshButton: {
-    marginTop: -8,
-    marginRight: -8,
-  },
-  checkMark: {
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: -8,
     marginRight: -8,
   },

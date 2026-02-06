@@ -1,8 +1,9 @@
-import React from 'react';
+import React, {useMemo} from 'react';
 import {View, StyleSheet} from 'react-native';
 import {Text, IconButton, Switch} from 'react-native-paper';
 import {Dish, DISH_CATEGORY_LABELS, NUTRITION_TAG_LABELS} from '../types';
-import {colors, typography, spacing, radius} from '../theme';
+import {typography, spacing, radius, ThemeColors} from '../theme';
+import {useAppTheme} from '../context/ThemeContext';
 
 interface DishItemProps {
   dish: Dish;
@@ -19,6 +20,8 @@ export const DishItem: React.FC<DishItemProps> = ({
   onToggleAvailable,
   showActions = true,
 }) => {
+  const {colors} = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   return (
     <View style={[styles.container, !dish.isAvailable && styles.unavailable]}>
       <View style={styles.mainContent}>
@@ -75,7 +78,7 @@ export const DishItem: React.FC<DishItemProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     backgroundColor: colors.surface,

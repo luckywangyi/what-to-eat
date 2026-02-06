@@ -1,5 +1,5 @@
-import React, {useState, useCallback} from 'react';
-import {View, ScrollView, StyleSheet, Alert} from 'react-native';
+import React, {useState, useCallback, useMemo} from 'react';
+import {View, ScrollView, StyleSheet, Alert, Share} from 'react-native';
 import {
   Text,
   Card,
@@ -23,17 +23,25 @@ import {
   SPICY_LEVEL_LABELS,
   DIET_GOAL_LABELS,
 } from '../types';
-import {colors, typography, spacing, radius, themes, ThemeMode} from '../theme';
+import {typography, spacing, radius, themes, ThemeMode, ThemeColors} from '../theme';
+import {useAppTheme} from '../context/ThemeContext';
 import {PressableScale} from '../components/PressableScale';
+import {AnimatedModal} from '../components/AnimatedModal';
+import {exportAllData, importAllData} from '../services/dbService';
 
 export const SettingsScreen: React.FC = () => {
   const theme = useTheme();
+  const {colors} = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [newExcludedFood, setNewExcludedFood] = useState('');
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [customUrlInput, setCustomUrlInput] = useState('');
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [importModalVisible, setImportModalVisible] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
 
   const {
     preferences,
@@ -448,8 +456,116 @@ export const SettingsScreen: React.FC = () => {
         </Card.Content>
       </Card>
 
+      {/* 数据备份与恢复 */}
+      <Card style={styles.card}>
+        <Card.Content>
+          <Text style={styles.sectionLabel}>数据管理</Text>
+          <Text style={styles.backupHint}>
+            导出所有食堂、菜品和消费记录数据，或从备份文件恢复
+          </Text>
+          <View style={styles.backupActions}>
+            <PressableScale 
+              style={styles.backupButton}
+              onPress={async () => {
+                setIsExporting(true);
+                try {
+                  const data = await exportAllData();
+                  await Share.share({
+                    message: data,
+                    title: '今天吃什么 - 数据备份',
+                  });
+                  setSnackbarMessage('数据导出成功');
+                  setSnackbarVisible(true);
+                } catch (error) {
+                  console.error('Export error:', error);
+                  setSnackbarMessage('导出失败');
+                  setSnackbarVisible(true);
+                } finally {
+                  setIsExporting(false);
+                }
+              }}
+              disabled={isExporting}
+            >
+              <Text style={styles.backupButtonText}>
+                {isExporting ? '导出中...' : '📤 导出数据'}
+              </Text>
+            </PressableScale>
+            <PressableScale 
+              style={styles.restoreButton}
+              onPress={() => {
+                setImportText('');
+                setImportModalVisible(true);
+              }}
+            >
+              <Text style={styles.restoreButtonText}>📥 导入恢复</Text>
+            </PressableScale>
+          </View>
+        </Card.Content>
+      </Card>
+
       <View style={styles.bottomPadding} />
     </ScrollView>
+
+    {/* 导入数据弹窗 */}
+    <AnimatedModal
+      visible={importModalVisible}
+      onDismiss={() => setImportModalVisible(false)}
+      contentContainerStyle={styles.importModal}
+    >
+      <Text style={styles.importTitle}>导入数据</Text>
+      <Text style={styles.importHint}>粘贴之前导出的 JSON 备份数据</Text>
+      <TextInput
+        mode="outlined"
+        multiline
+        numberOfLines={6}
+        value={importText}
+        onChangeText={setImportText}
+        placeholder='{"version":1, ...}'
+        style={styles.importInput}
+      />
+      <View style={styles.importActions}>
+        <PressableScale
+          style={styles.importCancel}
+          onPress={() => setImportModalVisible(false)}
+        >
+          <Text style={styles.importCancelText}>取消</Text>
+        </PressableScale>
+        <PressableScale
+          style={styles.importConfirm}
+          onPress={async () => {
+            if (!importText.trim()) {
+              setSnackbarMessage('请粘贴备份数据');
+              setSnackbarVisible(true);
+              return;
+            }
+            Alert.alert(
+              '确认导入',
+              '导入将覆盖现有的食堂和菜品数据，确定继续？',
+              [
+                {text: '取消', style: 'cancel'},
+                {
+                  text: '确认导入',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      const result = await importAllData(importText.trim());
+                      setImportModalVisible(false);
+                      setSnackbarMessage(`导入成功：${result.canteens} 个食堂，${result.dishes} 个菜品，${result.records} 条记录`);
+                      setSnackbarVisible(true);
+                    } catch (error: any) {
+                      setSnackbarMessage(`导入失败：${error.message || '数据格式错误'}`);
+                      setSnackbarVisible(true);
+                    }
+                  },
+                },
+              ]
+            );
+          }}
+        >
+          <Text style={styles.importConfirmText}>导入</Text>
+        </PressableScale>
+      </View>
+    </AnimatedModal>
 
     <Snackbar
       visible={snackbarVisible}
@@ -463,7 +579,7 @@ export const SettingsScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -606,6 +722,92 @@ const styles = StyleSheet.create({
   themeNameSelected: {
     color: colors.accent,
     fontWeight: '600',
+  },
+  // 数据备份
+  backupHint: {
+    ...typography.caption1,
+    color: colors.text.tertiary,
+    marginBottom: spacing.md,
+    lineHeight: 18,
+  },
+  backupActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  backupButton: {
+    flex: 1,
+    backgroundColor: colors.accent,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    alignItems: 'center',
+  },
+  backupButtonText: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.surface,
+  },
+  restoreButton: {
+    flex: 1,
+    backgroundColor: colors.surfaceSecondary,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    alignItems: 'center',
+  },
+  restoreButtonText: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  // 导入弹窗
+  importModal: {
+    backgroundColor: colors.surface,
+    padding: spacing.xl,
+    borderRadius: radius.lg,
+  },
+  importTitle: {
+    ...typography.title3,
+    color: colors.text.primary,
+    marginBottom: spacing.xs,
+  },
+  importHint: {
+    ...typography.caption1,
+    color: colors.text.tertiary,
+    marginBottom: spacing.md,
+  },
+  importInput: {
+    backgroundColor: colors.surface,
+    maxHeight: 150,
+    marginBottom: spacing.md,
+    fontSize: 12,
+  },
+  importActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  importCancel: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  importCancelText: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  importConfirm: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    backgroundColor: colors.accent,
+  },
+  importConfirmText: {
+    ...typography.subhead,
+    fontWeight: '600',
+    color: colors.surface,
   },
 });
 

@@ -1,7 +1,8 @@
-import React from 'react';
+import React, {useMemo} from 'react';
 import {View, StyleSheet} from 'react-native';
 import {Text, ProgressBar} from 'react-native-paper';
-import {colors, typography, spacing, radius} from '../theme';
+import {typography, spacing, radius, ThemeColors} from '../theme';
+import {useAppTheme} from '../context/ThemeContext';
 
 interface BudgetProgressProps {
   dailyBudget: number;
@@ -16,6 +17,8 @@ export const BudgetProgress: React.FC<BudgetProgressProps> = ({
   remaining,
   remainingDays,
 }) => {
+  const {colors} = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const progress = dailyBudget > 0 ? spent / dailyBudget : 0;
   
   // 根据进度设置颜色
@@ -59,7 +62,7 @@ export const BudgetProgress: React.FC<BudgetProgressProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     backgroundColor: colors.surface,
     paddingVertical: spacing.xl,

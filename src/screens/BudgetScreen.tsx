@@ -1,24 +1,23 @@
-import React, {useState, useCallback} from 'react';
+import React, {useState, useCallback, useMemo} from 'react';
 import {View, ScrollView, StyleSheet} from 'react-native';
 import {
   Text,
   Card,
   TextInput,
   Button,
-  ProgressBar,
-  Divider,
   List,
-  useTheme,
 } from 'react-native-paper';
 import {useFocusEffect} from '@react-navigation/native';
 import {useBudgetStore} from '../stores/budgetStore';
 import {usePreferenceStore} from '../stores/preferenceStore';
 import {usePlanStore} from '../stores/planStore';
 import {MEAL_TYPE_LABELS} from '../types';
-import {colors, typography, spacing, radius} from '../theme';
+import {typography, spacing, radius, ThemeColors} from '../theme';
+import {useAppTheme} from '../context/ThemeContext';
 
 export const BudgetScreen: React.FC = () => {
-  const theme = useTheme();
+  const {colors} = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [monthlyBudgetInput, setMonthlyBudgetInput] = useState('');
   const [isEditing, setIsEditing] = useState(false);
 
@@ -85,130 +84,168 @@ export const BudgetScreen: React.FC = () => {
 
   const stats = getRecentStats();
 
+  // 近7天每日消费数据（用于柱状图）
+  const dailyChartData = useMemo(() => {
+    const today = new Date();
+    const days: { label: string; total: number; breakfast: number; lunch: number; dinner: number }[] = [];
+    
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const weekDay = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+      const label = i === 0 ? '今' : weekDay;
+      
+      const dayRecords = consumptionRecords.filter(r => r.date === dateStr);
+      const breakfast = dayRecords.filter(r => r.mealType === 'breakfast').reduce((s, r) => s + r.actualCost, 0);
+      const lunch = dayRecords.filter(r => r.mealType === 'lunch').reduce((s, r) => s + r.actualCost, 0);
+      const dinner = dayRecords.filter(r => r.mealType === 'dinner').reduce((s, r) => s + r.actualCost, 0);
+      
+      days.push({ label, total: breakfast + lunch + dinner, breakfast, lunch, dinner });
+    }
+    return days;
+  }, [consumptionRecords]);
+
+  const maxDailySpend = Math.max(...dailyChartData.map(d => d.total), dailyBudget, 1);
+
   return (
     <ScrollView style={styles.container}>
-      {/* 月度预算卡片 */}
+      {/* 月度预算卡片 - 环形进度 */}
       <Card style={styles.card}>
-        <Card.Title title="月度预算" />
         <Card.Content>
-          {isEditing ? (
-            <View style={styles.editContainer}>
-              <TextInput
-                label="月度预算"
-                value={monthlyBudgetInput}
-                onChangeText={setMonthlyBudgetInput}
-                keyboardType="decimal-pad"
-                mode="outlined"
-                left={<TextInput.Affix text="¥" />}
-                style={styles.input}
-              />
-              <View style={styles.editActions}>
-                <Button onPress={() => setIsEditing(false)}>取消</Button>
-                <Button mode="contained" onPress={handleSaveBudget}>
-                  保存
-                </Button>
+          <View style={styles.budgetOverview}>
+            {/* 环形进度指示 */}
+            <View style={styles.ringContainer}>
+              <View style={[styles.ringOuter, { borderColor: progress > 0.8 ? colors.error : colors.accent }]}>
+                <View style={styles.ringInner}>
+                  <Text style={styles.ringPercent}>{Math.min(progress * 100, 100).toFixed(0)}%</Text>
+                  <Text style={styles.ringLabel}>已使用</Text>
+                </View>
               </View>
             </View>
-          ) : (
-            <>
-              <View style={styles.budgetRow}>
-                <Text style={styles.budgetLabel}>本月预算</Text>
-                <Text style={styles.budgetAmount}>¥{monthlyBudget.toFixed(0)}</Text>
-              </View>
-              
-              <View style={styles.budgetRow}>
-                <Text style={styles.budgetLabel}>已消费</Text>
-                <Text style={[styles.budgetAmount, {color: theme.colors.error}]}>
-                  ¥{consumed.toFixed(1)}
-                </Text>
-              </View>
-              
-              <View style={styles.budgetRow}>
-                <Text style={styles.budgetLabel}>剩余</Text>
-                <Text style={[styles.budgetAmount, {color: theme.colors.primary}]}>
-                  ¥{remainingBudget.toFixed(1)}
-                </Text>
-              </View>
-
-              <ProgressBar
-                progress={Math.min(progress, 1)}
-                color={progress > 0.8 ? theme.colors.error : theme.colors.primary}
-                style={styles.progressBar}
-              />
-              
-              <Text style={styles.progressText}>
-                已使用 {(progress * 100).toFixed(1)}%，剩余 {remainingDays} 天
-              </Text>
-
-              <Button
-                mode="outlined"
-                onPress={startEditing}
-                style={styles.editButton}
-              >
-                修改预算
-              </Button>
-            </>
-          )}
+            
+            {/* 预算数字 */}
+            <View style={styles.budgetNumbers}>
+              {isEditing ? (
+                <View style={styles.editContainer}>
+                  <TextInput
+                    label="月度预算"
+                    value={monthlyBudgetInput}
+                    onChangeText={setMonthlyBudgetInput}
+                    keyboardType="decimal-pad"
+                    mode="outlined"
+                    left={<TextInput.Affix text="¥" />}
+                    style={styles.input}
+                    dense
+                  />
+                  <View style={styles.editActions}>
+                    <Button onPress={() => setIsEditing(false)} compact>取消</Button>
+                    <Button mode="contained" onPress={handleSaveBudget} compact>保存</Button>
+                  </View>
+                </View>
+              ) : (
+                <>
+                  <View style={styles.budgetRow}>
+                    <Text style={styles.budgetLabel}>月预算</Text>
+                    <Text style={styles.budgetAmount}>¥{monthlyBudget.toFixed(0)}</Text>
+                  </View>
+                  <View style={styles.budgetRow}>
+                    <Text style={styles.budgetLabel}>已消费</Text>
+                    <Text style={[styles.budgetAmount, {color: colors.error}]}>¥{consumed.toFixed(0)}</Text>
+                  </View>
+                  <View style={styles.budgetRow}>
+                    <Text style={styles.budgetLabel}>剩余</Text>
+                    <Text style={[styles.budgetAmount, {color: colors.accent}]}>¥{remainingBudget.toFixed(0)}</Text>
+                  </View>
+                  <Text style={styles.daysLeft}>剩余 {remainingDays} 天</Text>
+                  <Button mode="text" onPress={startEditing} compact style={styles.editButton}>修改预算</Button>
+                </>
+              )}
+            </View>
+          </View>
         </Card.Content>
       </Card>
 
       {/* 每日预算分配 */}
       <Card style={styles.card}>
-        <Card.Title title="今日预算分配" />
         <Card.Content>
+          <Text style={styles.sectionTitle}>今日预算分配</Text>
           <View style={styles.dailyBudgetHeader}>
             <Text style={styles.dailyBudgetLabel}>今日可用</Text>
             <Text style={styles.dailyBudgetAmount}>¥{dailyBudget.toFixed(1)}</Text>
           </View>
 
-          <Divider style={styles.divider} />
+          {/* 三餐占比条 */}
+          <View style={styles.ratioBar}>
+            <View style={[styles.ratioSegment, { flex: preferences.mealBudgetRatio.breakfast, backgroundColor: '#FF9500' }]} />
+            <View style={[styles.ratioSegment, { flex: preferences.mealBudgetRatio.lunch, backgroundColor: colors.accent }]} />
+            <View style={[styles.ratioSegment, { flex: preferences.mealBudgetRatio.dinner, backgroundColor: '#5856D6' }]} />
+          </View>
 
           <View style={styles.mealBudgetRow}>
             <View style={styles.mealBudgetItem}>
-              <Text style={styles.mealLabel}>🌅 早餐</Text>
-              <Text style={styles.mealBudget}>¥{breakfastBudget.toFixed(1)}</Text>
-              <Text style={styles.mealPercent}>
-                {(preferences.mealBudgetRatio.breakfast * 100).toFixed(0)}%
-              </Text>
+              <View style={[styles.mealDot, { backgroundColor: '#FF9500' }]} />
+              <Text style={styles.mealLabel}>早餐</Text>
+              <Text style={styles.mealBudget}>¥{breakfastBudget.toFixed(0)}</Text>
             </View>
-            
             <View style={styles.mealBudgetItem}>
-              <Text style={styles.mealLabel}>☀️ 午餐</Text>
-              <Text style={styles.mealBudget}>¥{lunchBudget.toFixed(1)}</Text>
-              <Text style={styles.mealPercent}>
-                {(preferences.mealBudgetRatio.lunch * 100).toFixed(0)}%
-              </Text>
+              <View style={[styles.mealDot, { backgroundColor: colors.accent }]} />
+              <Text style={styles.mealLabel}>午餐</Text>
+              <Text style={styles.mealBudget}>¥{lunchBudget.toFixed(0)}</Text>
             </View>
-            
             <View style={styles.mealBudgetItem}>
-              <Text style={styles.mealLabel}>🌙 晚餐</Text>
-              <Text style={styles.mealBudget}>¥{dinnerBudget.toFixed(1)}</Text>
-              <Text style={styles.mealPercent}>
-                {(preferences.mealBudgetRatio.dinner * 100).toFixed(0)}%
-              </Text>
+              <View style={[styles.mealDot, { backgroundColor: '#5856D6' }]} />
+              <Text style={styles.mealLabel}>晚餐</Text>
+              <Text style={styles.mealBudget}>¥{dinnerBudget.toFixed(0)}</Text>
             </View>
           </View>
         </Card.Content>
       </Card>
 
-      {/* 消费统计 */}
+      {/* 近7天消费柱状图 */}
       <Card style={styles.card}>
-        <Card.Title title="近7天消费统计" />
         <Card.Content>
+          <Text style={styles.sectionTitle}>近 7 天消费趋势</Text>
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>¥{stats.totalSpent.toFixed(1)}</Text>
+              <Text style={styles.statValue}>¥{stats.totalSpent.toFixed(0)}</Text>
               <Text style={styles.statLabel}>总消费</Text>
             </View>
-            
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>¥{stats.avgDaily.toFixed(1)}</Text>
+              <Text style={styles.statValue}>¥{stats.avgDaily.toFixed(0)}</Text>
               <Text style={styles.statLabel}>日均</Text>
             </View>
-            
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{stats.count}</Text>
               <Text style={styles.statLabel}>记录数</Text>
+            </View>
+          </View>
+
+          {/* 柱状图 */}
+          <View style={styles.chartContainer}>
+            {/* 预算参考线 */}
+            <View style={[styles.budgetLine, { bottom: (dailyBudget / maxDailySpend) * 100 }]}>
+              <Text style={styles.budgetLineLabel}>日预算 ¥{dailyBudget.toFixed(0)}</Text>
+            </View>
+            
+            <View style={styles.barsRow}>
+              {dailyChartData.map((day, i) => (
+                <View key={i} style={styles.barGroup}>
+                  <View style={styles.barWrapper}>
+                    {day.total > 0 ? (
+                      <View style={[styles.bar, { height: `${(day.total / maxDailySpend) * 100}%` }]}>
+                        {day.dinner > 0 && <View style={[styles.barSegment, { flex: day.dinner, backgroundColor: '#5856D6' }]} />}
+                        {day.lunch > 0 && <View style={[styles.barSegment, { flex: day.lunch, backgroundColor: colors.accent }]} />}
+                        {day.breakfast > 0 && <View style={[styles.barSegment, { flex: day.breakfast, backgroundColor: '#FF9500' }]} />}
+                      </View>
+                    ) : (
+                      <View style={styles.barEmpty} />
+                    )}
+                  </View>
+                  <Text style={[styles.barLabel, i === 6 && styles.barLabelToday]}>{day.label}</Text>
+                  {day.total > 0 && <Text style={styles.barValue}>¥{day.total.toFixed(0)}</Text>}
+                </View>
+              ))}
             </View>
           </View>
         </Card.Content>
@@ -219,7 +256,11 @@ export const BudgetScreen: React.FC = () => {
         <Card.Title title="近期消费记录" />
         <Card.Content>
           {consumptionRecords.length === 0 ? (
-            <Text style={styles.emptyText}>暂无消费记录</Text>
+            <View style={styles.emptyRecordContainer}>
+              <Text style={styles.emptyRecordIcon}>📋</Text>
+              <Text style={styles.emptyText}>暂无消费记录</Text>
+              <Text style={styles.emptyHint}>确认用餐后消费记录会自动出现在这里</Text>
+            </View>
           ) : (
             <List.Section>
               {consumptionRecords.slice(0, 10).map(record => (
@@ -242,7 +283,7 @@ export const BudgetScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -255,38 +296,71 @@ const styles = StyleSheet.create({
     elevation: 0,
     shadowOpacity: 0,
   },
+  sectionTitle: {
+    ...typography.headline,
+    color: colors.text.primary,
+    marginBottom: spacing.md,
+  },
+  // 月度预算 - 环形布局
+  budgetOverview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xl,
+  },
+  ringContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ringOuter: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSecondary,
+  },
+  ringInner: {
+    alignItems: 'center',
+  },
+  ringPercent: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: colors.text.primary,
+    letterSpacing: -0.5,
+  },
+  ringLabel: {
+    ...typography.caption2,
+    color: colors.text.tertiary,
+  },
+  budgetNumbers: {
+    flex: 1,
+  },
   budgetRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   budgetLabel: {
     ...typography.subhead,
     color: colors.text.secondary,
   },
   budgetAmount: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '600',
     color: colors.text.primary,
     letterSpacing: -0.3,
   },
-  progressBar: {
-    height: 6,
-    borderRadius: 3,
-    marginVertical: spacing.md,
-    backgroundColor: colors.surfaceSecondary,
-  },
-  progressText: {
+  daysLeft: {
     ...typography.caption1,
     color: colors.text.tertiary,
-    textAlign: 'center',
+    marginTop: spacing.xs,
   },
   editContainer: {
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   input: {
-    marginBottom: spacing.sm,
     backgroundColor: colors.surface,
   },
   editActions: {
@@ -295,27 +369,35 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   editButton: {
-    marginTop: spacing.lg,
-    borderColor: colors.border,
+    marginTop: spacing.xs,
+    alignSelf: 'flex-start',
   },
   dailyBudgetHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: spacing.md,
   },
   dailyBudgetLabel: {
     ...typography.subhead,
     color: colors.text.secondary,
   },
   dailyBudgetAmount: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '600',
     color: colors.accent,
     letterSpacing: -0.5,
   },
-  divider: {
-    marginVertical: spacing.lg,
-    backgroundColor: colors.separator,
+  // 占比条
+  ratioBar: {
+    flexDirection: 'row',
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: spacing.lg,
+  },
+  ratioSegment: {
+    height: '100%',
   },
   mealBudgetRow: {
     flexDirection: 'row',
@@ -323,33 +405,35 @@ const styles = StyleSheet.create({
   },
   mealBudgetItem: {
     alignItems: 'center',
+    gap: spacing.xs,
+  },
+  mealDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   mealLabel: {
-    ...typography.footnote,
+    ...typography.caption1,
     color: colors.text.secondary,
-    marginBottom: spacing.xs,
   },
   mealBudget: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '600',
     color: colors.text.primary,
     letterSpacing: -0.3,
   },
-  mealPercent: {
-    ...typography.caption2,
-    color: colors.text.tertiary,
-    marginTop: spacing.xs,
-  },
+  // 统计数字
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
   },
   statItem: {
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '600',
     color: colors.text.primary,
     letterSpacing: -0.3,
@@ -359,11 +443,91 @@ const styles = StyleSheet.create({
     color: colors.text.tertiary,
     marginTop: spacing.xs,
   },
+  // 柱状图
+  chartContainer: {
+    height: 140,
+    position: 'relative',
+  },
+  budgetLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    borderTopWidth: 1,
+    borderTopColor: colors.accent,
+    borderStyle: 'dashed',
+    zIndex: 1,
+  },
+  budgetLineLabel: {
+    ...typography.caption2,
+    color: colors.accent,
+    position: 'absolute',
+    right: 0,
+    top: -14,
+  },
+  barsRow: {
+    flexDirection: 'row',
+    flex: 1,
+    alignItems: 'flex-end',
+    gap: spacing.xs,
+    paddingBottom: 24,
+  },
+  barGroup: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  barWrapper: {
+    width: '100%',
+    height: 100,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  bar: {
+    width: '70%',
+    borderRadius: 4,
+    overflow: 'hidden',
+    minHeight: 4,
+  },
+  barSegment: {
+    width: '100%',
+  },
+  barEmpty: {
+    width: '70%',
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  barLabel: {
+    ...typography.caption2,
+    color: colors.text.tertiary,
+    marginTop: 4,
+  },
+  barLabelToday: {
+    color: colors.accent,
+    fontWeight: '600',
+  },
+  barValue: {
+    fontSize: 9,
+    color: colors.text.tertiary,
+  },
+  // 空状态
+  emptyRecordContainer: {
+    alignItems: 'center',
+    paddingVertical: spacing.xl,
+  },
+  emptyRecordIcon: {
+    fontSize: 32,
+    marginBottom: spacing.sm,
+  },
   emptyText: {
     ...typography.subhead,
     color: colors.text.tertiary,
     textAlign: 'center',
-    padding: spacing.xl,
+    marginBottom: spacing.xs,
+  },
+  emptyHint: {
+    ...typography.caption1,
+    color: colors.text.tertiary,
+    textAlign: 'center',
   },
   recordAmount: {
     ...typography.headline,

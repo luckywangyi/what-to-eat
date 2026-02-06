@@ -4,3 +4,4 @@ export {usePreferenceStore} from './preferenceStore';
 export {usePlanStore} from './planStore';
 export {useApiConfigStore, API_PROVIDERS} from './apiConfigStore';
 export {useThemeStore} from './themeStore';
+export {useFavoriteStore} from './favoriteStore';

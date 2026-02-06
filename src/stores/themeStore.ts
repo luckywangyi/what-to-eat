@@ -34,12 +34,17 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
   },
 
   setTheme: async (mode: ThemeMode) => {
+    const previousTheme = get().currentTheme;
+    // 乐观更新：先立即切换状态，再异步保存
+    setThemeColors(mode);
+    set({currentTheme: mode});
     try {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, mode);
-      setThemeColors(mode);
-      set({currentTheme: mode});
     } catch (error) {
+      // 保存失败则回滚
       console.error('Failed to save theme:', error);
+      setThemeColors(previousTheme);
+      set({currentTheme: previousTheme});
     }
   },
 
